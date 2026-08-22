@@ -1,0 +1,1492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Discus Lab — Throw Log</title>
+<meta name="theme-color" content="#0a0a0a">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Throw Log">
+<meta name="mobile-web-app-capable" content="yes">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg-0: #0a0a0a;
+  --bg-1: #131313;
+  --bg-2: #1a1a1a;
+  --line: #262626;
+  --blue: #2a78d6;
+  --green: #3ecf5e;
+  --amber: #f0a020;
+  --red: #ef4444;
+  --text-0: #ffffff;
+  --text-1: #9a9a9a;
+  --text-2: #666666;
+  --font-body: 'Inter', sans-serif;
+}
+
+html, body { background: var(--bg-0); color: var(--text-0); font-family: var(--font-body); min-height: 100%; overflow-x: hidden; max-width: 100vw; }
+#app { display: flex; flex-direction: column; min-height: 100vh; }
+
+/* ============ TOP BAR ============ */
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 24px; border-bottom: 1px solid var(--line);
+  flex-shrink: 0; flex-wrap: wrap; gap: 12px;
+}
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand-mark {
+  width: 30px; height: 30px; border-radius: 7px; background: var(--blue);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 600; font-size: 15px; color: #fff; flex-shrink: 0;
+}
+.brand-text h1 { font-weight: 500; font-size: 15px; letter-spacing: 0.2px; }
+.brand-text p { font-size: 11px; color: var(--text-1); }
+.topbar-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.season-picker { display: flex; align-items: center; gap: 8px; }
+.season-picker select, .impl-filter select {
+  background: var(--bg-2); border: 1px solid var(--line); color: var(--text-0);
+  font-size: 12px; padding: 7px 10px; border-radius: 6px;
+}
+.divider-v { width: 1px; height: 22px; background: var(--line); margin: 0 2px; }
+.btn {
+  font-family: var(--font-body); font-size: 12px; font-weight: 500;
+  padding: 7px 14px; border-radius: 6px; border: 1px solid var(--line);
+  background: var(--bg-2); color: var(--text-0); cursor: pointer; transition: all .12s;
+  white-space: nowrap;
+}
+.btn:hover { border-color: var(--text-1); }
+.btn-primary { background: var(--blue); color: #fff; border: none; font-weight: 500; }
+.btn-primary:hover { filter: brightness(1.1); }
+.btn-danger { color: var(--red); border-color: transparent; background: transparent; padding: 4px 8px; }
+.btn-danger:hover { background: rgba(239, 68, 68, 0.12); }
+.btn-sm { padding: 5px 10px; font-size: 11px; }
+.btn-icon { padding: 6px 9px; font-size: 13px; }
+
+/* ============ LAYOUT ============ */
+.layout { flex: 1; display: flex; gap: 0; max-width: 1320px; width: 100%; margin: 0 auto; align-items: flex-start; }
+main { flex: 1; min-width: 0; padding: 24px; }
+#detail-panel {
+  width: 400px; flex-shrink: 0; border-left: 1px solid var(--line);
+  padding: 24px 20px; position: sticky; top: 0; max-height: 100vh; overflow-y: auto;
+  display: none;
+}
+#detail-panel.open { display: block; }
+
+/* ============ METRIC ROW ============ */
+.metric-row { display: flex; flex-wrap: wrap; gap: 32px; align-items: flex-start; margin-bottom: 14px; }
+.metric-item { min-width: 90px; }
+.metric-label { font-size: 13px; color: var(--text-1); margin-bottom: 6px; }
+.metric-value { font-size: 26px; font-weight: 500; color: var(--text-0); }
+.kebab { margin-left: auto; color: var(--text-1); font-size: 18px; letter-spacing: 1px; padding: 4px 8px; }
+
+/* ============ PR STRIP ============ */
+.pr-strip { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 22px; }
+.pr-chip {
+  font-size: 11px; padding: 5px 10px; border-radius: 20px; border: 1px solid var(--line);
+  background: var(--bg-1); color: var(--text-1); cursor: pointer; display: flex; gap: 5px; align-items: center;
+}
+.pr-chip b { color: var(--text-0); font-weight: 600; }
+.pr-chip.active { border-color: var(--blue); background: rgba(42,120,214,0.12); color: var(--text-0); }
+
+/* ============ RANGE / FILTER ROW ============ */
+.filter-row { display: flex; align-items: center; gap: 6px; margin-bottom: 16px; flex-wrap: wrap; }
+.range-btn {
+  font-size: 12px; padding: 6px 12px; border-radius: 6px; border: 1px solid transparent;
+  background: transparent; color: var(--text-1); cursor: pointer;
+}
+.range-btn:hover { color: var(--text-0); }
+.range-btn.active { background: var(--bg-2); color: var(--text-0); border-color: var(--line); }
+.impl-filter { }
+.filter-group { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ============ CHART ============ */
+.panel { margin-bottom: 28px; }
+.chart-legend { display: flex; align-items: center; gap: 14px; font-size: 13px; color: var(--text-0); margin-bottom: 14px; flex-wrap: wrap; }
+.chart-legend .legend-item { display: flex; align-items: center; gap: 6px; }
+.chart-legend .swatch { width: 10px; height: 10px; border-radius: 2px; background: var(--blue); }
+.chart-legend .swatch.foul { background: transparent; border: 1.5px solid var(--red); border-radius: 50%; }
+.granularity-row { display: flex; align-items: center; gap: 4px; margin-bottom: 10px; flex-wrap: wrap; }
+.granularity-label { font-size: 12px; color: var(--text-1); margin-right: 4px; }
+#chart-wrap { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+#chart { height: auto; display: block; }
+#chart-empty { color: var(--text-2); font-size: 13px; padding: 20px 0; text-align: center; }
+
+/* ============ FORM ============ */
+.form-panel { background: var(--bg-1); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; margin-bottom: 28px; }
+.panel-title { font-size: 13px; font-weight: 500; color: var(--text-1); margin-bottom: 12px; }
+.preset-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+.preset-row select {
+  background: var(--bg-2); border: 1px solid var(--line); color: var(--text-0);
+  font-size: 12px; padding: 6px 10px; border-radius: 6px;
+}
+.form-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+.field { display: flex; flex-direction: column; gap: 5px; min-width: 90px; }
+.field label { font-size: 11px; color: var(--text-1); letter-spacing: 0.3px; }
+.field input, .field select {
+  background: var(--bg-2); border: 1px solid var(--line); color: var(--text-0);
+  font-size: 13px; padding: 8px 10px; border-radius: 6px; width: 100%;
+}
+.field input:focus, .field select:focus { outline: none; border-color: var(--blue); }
+.field.wide { flex: 1; min-width: 160px; }
+.field input::placeholder { color: var(--text-2); }
+.field-check { display: flex; flex-direction: row; align-items: center; gap: 7px; padding-bottom: 8px; }
+.field-check input { width: 15px; height: 15px; accent-color: var(--red); }
+.field-check label { font-size: 12px; color: var(--text-1); }
+
+/* ============ TABLE ============ */
+.table-scroll { overflow-x: auto; }
+.table-card { background: var(--bg-1); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 720px; }
+thead th { text-align: left; padding: 12px 16px; color: var(--text-1); font-weight: 400; font-size: 13px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+thead th.num, tbody td.num { text-align: right; }
+tbody tr.throw-row { cursor: pointer; }
+tbody tr.throw-row:hover { background: var(--bg-2); }
+tbody tr.selected { background: rgba(42,120,214,0.12); }
+tbody tr.foul-row td.dist { color: var(--red); }
+tbody td { padding: 11px 16px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+tbody tr:last-child td { border-bottom: none; }
+tbody td.notes { color: var(--text-1); white-space: normal; max-width: 220px; }
+tbody td.vidcol { text-align: center; }
+tbody td.delcol { text-align: center; width: 36px; }
+.del-btn {
+  opacity: 0; background: none; border: none; color: var(--text-2); font-size: 16px;
+  cursor: pointer; line-height: 1; padding: 4px 6px; border-radius: 4px; transition: opacity .12s, color .12s, background .12s;
+}
+tr.throw-row:hover .del-btn { opacity: 1; }
+.del-btn:hover { color: var(--red); background: rgba(239,68,68,0.12); }
+.star { font-size: 12px; margin-right: 4px; }
+.star-range { color: #f0c020; }
+.star-session { color: var(--text-1); }
+tbody td.small { color: var(--text-1); font-size: 12px; }
+.wobble-Low { color: var(--green); }
+.wobble-Med { color: var(--amber); }
+.wobble-High { color: var(--red); }
+.foul-tag { font-size: 10px; color: var(--red); border: 1px solid var(--red); border-radius: 4px; padding: 1px 5px; margin-left: 6px; }
+.session-row td { background: var(--bg-2); color: var(--text-1); font-size: 12px; padding: 8px 16px; border-bottom: 1px solid var(--line); }
+.session-row b { color: var(--text-0); }
+.empty-state { text-align: center; padding: 32px 0; color: var(--text-2); font-size: 13px; }
+
+/* ============ DETAIL PANEL ============ */
+.detail-close { float: right; background: none; border: none; color: var(--text-1); font-size: 18px; cursor: pointer; }
+.detail-menu-wrap { float: right; position: relative; }
+.detail-menu-btn { background: none; border: none; color: var(--text-1); font-size: 18px; cursor: pointer; padding: 0 4px; }
+.detail-menu { display: none; position: absolute; right: 0; top: 26px; background: var(--bg-2); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; z-index: 10; min-width: 130px; }
+.detail-menu.open { display: block; }
+.detail-menu button { display: block; width: 100%; text-align: left; padding: 9px 12px; background: none; border: none; color: var(--red); font-size: 12px; cursor: pointer; }
+.detail-menu button:hover { background: rgba(239,68,68,0.12); }
+.detail-date { font-size: 12px; color: var(--text-1); margin-bottom: 4px; }
+.detail-dist { font-size: 34px; font-weight: 600; margin-bottom: 4px; }
+.detail-dist.foul { color: var(--red); font-size: 22px; }
+.detail-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+.detail-badge { font-size: 11px; padding: 3px 9px; border-radius: 20px; background: var(--bg-2); border: 1px solid var(--line); color: var(--text-1); }
+.detail-stats { display: flex; gap: 18px; margin-bottom: 18px; flex-wrap: wrap; }
+.detail-stat-label { font-size: 11px; color: var(--text-1); margin-bottom: 3px; }
+.detail-stat-value { font-size: 15px; font-weight: 500; }
+.detail-notes { font-size: 13px; color: var(--text-1); margin-bottom: 20px; line-height: 1.5; }
+.video-box { width: 100%; min-height: 220px; background: var(--bg-2); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; margin-bottom: 10px; display: flex; align-items: center; justify-content: center; }
+.video-box video, .video-box iframe { width: 100%; height: 100%; min-height: 220px; border: 0; display: block; }
+.video-box .instagram-media { margin: 0 !important; width: 100% !important; }
+.video-empty { color: var(--text-2); font-size: 12px; text-align: center; padding: 20px; }
+.frame-controls { display: flex; align-items: center; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+.frame-controls .speed-btn { font-size: 11px; padding: 5px 9px; border-radius: 5px; border: 1px solid var(--line); background: var(--bg-2); color: var(--text-1); cursor: pointer; }
+.frame-controls .speed-btn.active { color: var(--text-0); border-color: var(--blue); background: rgba(42,120,214,0.12); }
+.frame-controls .step-btn { font-size: 13px; padding: 5px 10px; border-radius: 5px; border: 1px solid var(--line); background: var(--bg-2); color: var(--text-0); cursor: pointer; }
+.frame-controls .spacer { width: 1px; height: 18px; background: var(--line); margin: 0 4px; }
+.attach-tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+.attach-tab { flex: 1; text-align: center; font-size: 12px; padding: 6px; border-radius: 6px; background: var(--bg-2); border: 1px solid var(--line); color: var(--text-1); cursor: pointer; }
+.attach-tab.active { color: var(--text-0); border-color: var(--blue); }
+.attach-form { display: none; }
+.attach-form.active { display: flex; gap: 8px; }
+.attach-form input[type=text] {
+  flex: 1; background: var(--bg-2); border: 1px solid var(--line); color: var(--text-0);
+  font-size: 12px; padding: 8px 10px; border-radius: 6px;
+}
+.attach-form input[type=file] { flex: 1; font-size: 12px; color: var(--text-1); }
+.export-note { font-size: 10px; color: var(--text-2); width: 100%; margin-top: 2px; }
+
+/* ============ SYNC MODAL ============ */
+.modal-overlay {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+  align-items: center; justify-content: center; z-index: 100; padding: 20px;
+}
+.modal-overlay.open { display: flex; }
+.modal-card {
+  background: var(--bg-1); border: 1px solid var(--line); border-radius: 12px;
+  padding: 22px; max-width: 420px; width: 100%; max-height: 85vh; overflow-y: auto;
+}
+.modal-card h3 { font-size: 15px; font-weight: 500; margin-bottom: 6px; }
+.modal-card p { font-size: 12px; color: var(--text-1); line-height: 1.6; margin-bottom: 12px; }
+.modal-card ol { font-size: 12px; color: var(--text-1); line-height: 1.7; margin: 0 0 14px 18px; }
+.modal-card textarea {
+  width: 100%; min-height: 110px; background: var(--bg-2); border: 1px solid var(--line);
+  color: var(--text-0); font-family: monospace; font-size: 11px; padding: 10px; border-radius: 6px; margin-bottom: 12px; resize: vertical;
+}
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+.sync-status-row { display: flex; align-items: center; gap: 8px; font-size: 13px; margin-bottom: 4px; }
+.sync-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+.sync-dot.offline { background: var(--text-2); }
+.sync-dot.error { background: var(--red); }
+.sync-error-box { font-size: 12px; color: var(--red); background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); border-radius: 6px; padding: 8px 10px; margin-bottom: 12px; }
+
+@media (max-width: 900px) {
+  .layout { flex-direction: column; }
+  #detail-panel { width: 100%; border-left: none; border-top: 1px solid var(--line); position: static; max-height: none; }
+}
+@media (max-width: 640px) {
+  .topbar { padding: 12px 16px; }
+  main { padding: 16px; }
+  .metric-row { gap: 20px; }
+}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">D</span>
+      <div class="brand-text"><h1>THROW LOG</h1><p>discus lab · season tracker</p></div>
+    </div>
+    <div class="topbar-right">
+      <div class="season-picker">
+        <select id="season-select"></select>
+        <button class="btn btn-sm" id="new-season-btn">New season</button>
+      </div>
+      <div class="divider-v"></div>
+      <button class="btn btn-sm" id="export-json-btn">Export JSON</button>
+      <button class="btn btn-sm" id="export-csv-btn">Export CSV</button>
+      <button class="btn btn-sm" id="import-btn">Import</button>
+      <input type="file" id="import-file" accept="application/json" style="display:none">
+      <div class="divider-v"></div>
+      <button class="btn btn-sm btn-primary" id="sync-btn">Cloud sync</button>
+    </div>
+  </header>
+
+  <div class="modal-overlay" id="sync-modal"></div>
+
+  <div class="layout">
+    <main>
+      <div class="metric-row">
+        <div class="metric-item"><div class="metric-label">Best (range)</div><div class="metric-value" id="m-best">—</div></div>
+        <div class="metric-item"><div class="metric-label">Avg (range)</div><div class="metric-value" id="m-avg">—</div></div>
+        <div class="metric-item"><div class="metric-label">Throws (range)</div><div class="metric-value" id="m-count">—</div></div>
+        <div class="metric-item"><div class="metric-label">Fouls (range)</div><div class="metric-value" id="m-fouls">—</div></div>
+        <div class="metric-item"><div class="metric-label">Personal best</div><div class="metric-value" id="m-pr">—</div></div>
+        <div class="kebab">&#8943;</div>
+      </div>
+
+      <div class="pr-strip" id="pr-strip"></div>
+
+      <div class="filter-row" id="filter-row"></div>
+
+      <div class="panel">
+        <div class="chart-legend">
+          <div class="legend-item"><span class="swatch"></span>Bucket best (line) · click any point for details</div>
+          <div class="legend-item"><span class="swatch" style="opacity:0.5;width:7px;height:7px;"></span>Other throws in bucket</div>
+          <div class="legend-item"><span class="swatch foul"></span>Foul</div>
+          <div class="legend-item"><span class="swatch" style="background:#f0c020;"></span>Best in range</div>
+        </div>
+        <div class="granularity-row" id="granularity-row"></div>
+        <div class="granularity-row" id="linestyle-row"></div>
+        <div id="chart-wrap"></div>
+      </div>
+
+      <div class="form-panel">
+        <div class="panel-title">Log a throw</div>
+        <div class="preset-row" id="preset-row"></div>
+        <div class="form-row">
+          <div class="field"><label>Date</label><input type="date" id="in-date"></div>
+          <div class="field"><label>Distance (m)</label><input type="number" step="0.01" id="in-distance" placeholder="52.30"></div>
+          <div class="field"><label>Implement</label>
+            <select id="in-implement"><option value="">—</option></select>
+          </div>
+          <div class="field"><label>Wind</label>
+            <select id="in-wind"><option value="">—</option></select>
+          </div>
+          <div class="field"><label>Throw type</label>
+            <select id="in-type"><option value="">—</option></select>
+          </div>
+          <div class="field"><label>Wobble</label>
+            <select id="in-wobble"><option value="">—</option><option value="Low">Low</option><option value="Med">Med</option><option value="High">High</option></select>
+          </div>
+          <div class="field-check"><input type="checkbox" id="in-foul"><label for="in-foul">Foul</label></div>
+          <div class="field wide"><label>Notes</label><input type="text" id="in-notes" placeholder="wind, cue, how it felt..."></div>
+          <button class="btn btn-primary" id="add-throw-btn">Add throw</button>
+        </div>
+      </div>
+
+      <div class="panel-title" id="table-title">This season</div>
+      <div class="table-card table-scroll"><div id="table-wrap"></div></div>
+    </main>
+
+    <div id="detail-panel"></div>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = 'discusThrowLogV3';
+const V2_KEY = 'discusThrowLogV2';
+const LEGACY_KEY = 'discusThrowLog';
+const DB_NAME = 'discusThrowLogDB';
+
+const IMPLEMENTS = ['1.0kg', '1.5kg', '1.6kg', '1.75kg', '2.0kg', '2.25kg'];
+const WIND_OPTIONS = ['Calm', 'Headwind', 'Tailwind', 'Left-to-Right', 'Right-to-Left'];
+const THROW_TYPES = ['Full Turn', 'South African', 'Power Position', 'Half Turn'];
+const RANGES = [
+  { key: '2w', label: '2W', ms: 14 * 24 * 3600 * 1000 },
+  { key: '1m', label: '1M', ms: 30 * 24 * 3600 * 1000 },
+  { key: '3m', label: '3M', ms: 90 * 24 * 3600 * 1000 },
+  { key: 'all', label: 'Season', ms: null }
+];
+
+/* ---------- IndexedDB (video blobs) ---------- */
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = () => { req.result.createObjectStore('videos'); };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function saveVideoBlob(id, blob) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('videos', 'readwrite');
+    tx.objectStore('videos').put(blob, id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function getVideoBlob(id) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('videos', 'readonly');
+    const req = tx.objectStore('videos').get(id);
+    req.onsuccess = () => resolve(req.result || null);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function deleteVideoBlob(id) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('videos', 'readwrite');
+    tx.objectStore('videos').delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+/* ---------- Data load / migrate ---------- */
+function makeId() { return 't_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7); }
+
+function upgradeThrow(t) {
+  return {
+    id: t.id || makeId(),
+    date: t.date,
+    distance: t.distance != null ? t.distance : null,
+    implement: t.implement || null,
+    speed: t.speed || null,
+    wobble: t.wobble || null,
+    wind: t.wind || null,
+    throwType: t.throwType || null,
+    foul: !!t.foul,
+    notes: t.notes || null,
+    video: t.video || null
+  };
+}
+
+function loadData() {
+  const rawV3 = localStorage.getItem(STORAGE_KEY);
+  if (rawV3) { try { return JSON.parse(rawV3); } catch (e) {} }
+
+  // migrate from V2 (season-based, no track & field fields)
+  const rawV2 = localStorage.getItem(V2_KEY);
+  if (rawV2) {
+    try {
+      const v2 = JSON.parse(rawV2);
+      const upgraded = { currentSeasonId: v2.currentSeasonId, seasons: {} };
+      Object.values(v2.seasons).forEach(s => {
+        upgraded.seasons[s.id] = { id: s.id, name: s.name, throws: s.throws.map(upgradeThrow) };
+      });
+      return upgraded;
+    } catch (e) {}
+  }
+
+  // migrate from oldest legacy (session-grouped) schema
+  const legacyRaw = localStorage.getItem(LEGACY_KEY);
+  const seasonId = 'season_1';
+  const fresh = { currentSeasonId: seasonId, seasons: { [seasonId]: { id: seasonId, name: 'Season 1', throws: [] } } };
+  if (legacyRaw) {
+    try {
+      const legacy = JSON.parse(legacyRaw);
+      const keys = Object.keys(legacy.sessions || {}).sort();
+      keys.forEach(k => {
+        (legacy.sessions[k].throws || []).forEach((t, i) => {
+          fresh.seasons[seasonId].throws.push(upgradeThrow({
+            date: k + 'T12:' + String(i).padStart(2, '0') + ':00',
+            distance: t.distance, speed: t.speed, wobble: t.wobble, notes: t.notes
+          }));
+        });
+      });
+    } catch (e) {}
+  }
+  return fresh;
+}
+
+function saveData() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  scheduleCloudPush();
+}
+
+let data = loadData();
+let currentRange = 'all';
+let chartGranularity = 'auto';
+let chartLineStyle = 'straight';
+let currentImplFilter = 'all';
+let currentTypeFilter = 'all';
+let selectedThrowId = null;
+let activeAttachTab = 'link';
+
+function currentSeason() { return data.seasons[data.currentSeasonId]; }
+function isValid(t) { return !t.foul && t.distance != null; }
+function allThrowsFlat() {
+  const out = [];
+  Object.values(data.seasons).forEach(s => s.throws.forEach(t => out.push(t)));
+  return out;
+}
+
+/* ---------- Static selects ---------- */
+function fillSelect(el, options, placeholder) {
+  options.forEach(o => {
+    const opt = document.createElement('option');
+    opt.value = o; opt.textContent = o;
+    el.appendChild(opt);
+  });
+}
+fillSelect(document.getElementById('in-implement'), IMPLEMENTS);
+fillSelect(document.getElementById('in-wind'), WIND_OPTIONS);
+fillSelect(document.getElementById('in-type'), THROW_TYPES);
+
+/* ---------- Presets (saved implement/wind/throw-type combos) ---------- */
+const PRESET_KEY = 'discusThrowLogPresetsV1';
+function loadPresets() {
+  try { return JSON.parse(localStorage.getItem(PRESET_KEY)) || []; } catch (e) { return []; }
+}
+function savePresets(list) { localStorage.setItem(PRESET_KEY, JSON.stringify(list)); }
+
+function renderPresetRow() {
+  const row = document.getElementById('preset-row');
+  const presets = loadPresets();
+  const options = '<option value="">No preset</option>' +
+    presets.map(p => '<option value="' + p.id + '">' + escapeHtml(p.name) + '</option>').join('');
+  row.innerHTML =
+    '<span class="granularity-label">Preset:</span>' +
+    '<select id="preset-select">' + options + '</select>' +
+    '<button class="btn btn-sm" id="save-preset-btn">+ Save current as preset</button>' +
+    '<button class="btn btn-sm btn-danger" id="delete-preset-btn" style="display:none;">Delete preset</button>';
+
+  const select = document.getElementById('preset-select');
+  const deleteBtn = document.getElementById('delete-preset-btn');
+  select.addEventListener('change', () => {
+    deleteBtn.style.display = select.value ? 'inline-block' : 'none';
+    const preset = presets.find(p => p.id === select.value);
+    if (!preset) return;
+    document.getElementById('in-implement').value = preset.implement || '';
+    document.getElementById('in-wind').value = preset.wind || '';
+    document.getElementById('in-type').value = preset.throwType || '';
+  });
+  document.getElementById('save-preset-btn').addEventListener('click', () => {
+    const name = prompt('Name this preset (e.g. "Practice — 1.6kg calm"):');
+    if (!name) return;
+    const preset = {
+      id: 'preset_' + Date.now(),
+      name,
+      implement: document.getElementById('in-implement').value || null,
+      wind: document.getElementById('in-wind').value || null,
+      throwType: document.getElementById('in-type').value || null
+    };
+    const list = loadPresets();
+    list.push(preset);
+    savePresets(list);
+    renderPresetRow();
+    document.getElementById('preset-select').value = preset.id;
+    deleteBtn.style.display = 'inline-block';
+  });
+  deleteBtn.addEventListener('click', () => {
+    const id = select.value;
+    const preset = presets.find(p => p.id === id);
+    if (!preset || !confirm('Delete preset "' + preset.name + '"?')) return;
+    savePresets(loadPresets().filter(p => p.id !== id));
+    renderPresetRow();
+  });
+}
+renderPresetRow();
+
+/* ---------- Season handling ---------- */
+function populateSeasonSelect() {
+  const sel = document.getElementById('season-select');
+  sel.innerHTML = '';
+  Object.values(data.seasons).forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = s.id;
+    opt.textContent = s.name + ' (' + s.throws.length + ')';
+    if (s.id === data.currentSeasonId) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+document.getElementById('season-select').addEventListener('change', e => {
+  data.currentSeasonId = e.target.value;
+  selectedThrowId = null;
+  renderAll();
+});
+document.getElementById('new-season-btn').addEventListener('click', () => {
+  const name = prompt('Name this season (e.g. "Spring 2027"):');
+  if (!name) return;
+  const id = 'season_' + Date.now();
+  data.seasons[id] = { id, name, throws: [] };
+  data.currentSeasonId = id;
+  saveData();
+  selectedThrowId = null;
+  renderAll();
+});
+
+/* ---------- Filters: range + implement ---------- */
+function renderFilterRow() {
+  const row = document.getElementById('filter-row');
+  const rangeBtns = RANGES.map(r =>
+    '<button class="range-btn' + (currentRange === r.key ? ' active' : '') + '" data-range="' + r.key + '">' + r.label + '</button>'
+  ).join('');
+  const implOptions = '<option value="all">All implements</option>' +
+    IMPLEMENTS.map(w => '<option value="' + w + '"' + (currentImplFilter === w ? ' selected' : '') + '>' + w + '</option>').join('');
+  const typeOptions = '<option value="all">All turn types</option>' +
+    THROW_TYPES.map(ty => '<option value="' + ty + '"' + (currentTypeFilter === ty ? ' selected' : '') + '>' + ty + '</option>').join('');
+  row.innerHTML = rangeBtns +
+    '<div class="filter-group">' +
+    '<div class="impl-filter"><select id="impl-filter-select">' + implOptions + '</select></div>' +
+    '<div class="impl-filter"><select id="type-filter-select">' + typeOptions + '</select></div>' +
+    '</div>';
+  row.querySelectorAll('.range-btn').forEach(btn => {
+    btn.addEventListener('click', () => { currentRange = btn.dataset.range; renderAll(); });
+  });
+  document.getElementById('impl-filter-select').addEventListener('change', e => {
+    currentImplFilter = e.target.value; renderAll();
+  });
+  document.getElementById('type-filter-select').addEventListener('change', e => {
+    currentTypeFilter = e.target.value; renderAll();
+  });
+}
+
+function filteredThrows() {
+  let throws = [...currentSeason().throws].sort((a, b) => new Date(a.date) - new Date(b.date));
+  if (currentImplFilter !== 'all') throws = throws.filter(t => t.implement === currentImplFilter);
+  if (currentTypeFilter !== 'all') throws = throws.filter(t => t.throwType === currentTypeFilter);
+  if (throws.length === 0) return [];
+  const rangeDef = RANGES.find(r => r.key === currentRange);
+  if (!rangeDef.ms) return throws;
+  const latest = new Date(throws[throws.length - 1].date).getTime();
+  const cutoff = latest - rangeDef.ms;
+  return throws.filter(t => new Date(t.date).getTime() >= cutoff);
+}
+
+/* ---------- Metrics ---------- */
+function round1(n) { return Math.round(n * 10) / 10; }
+
+function prFor(implFilter) {
+  let best = null;
+  allThrowsFlat().forEach(t => {
+    if (!isValid(t)) return;
+    if (implFilter !== 'all' && t.implement !== implFilter) return;
+    if (best === null || t.distance > best) best = t.distance;
+  });
+  return best;
+}
+
+function renderMetrics(throws) {
+  const valid = throws.filter(isValid);
+  const dists = valid.map(t => t.distance);
+  document.getElementById('m-best').textContent = dists.length ? round1(Math.max(...dists)) + ' m' : '—';
+  document.getElementById('m-avg').textContent = dists.length ? round1(dists.reduce((a, b) => a + b, 0) / dists.length) + ' m' : '—';
+  document.getElementById('m-count').textContent = throws.length;
+  document.getElementById('m-fouls').textContent = throws.filter(t => t.foul).length;
+  const pr = prFor(currentImplFilter);
+  document.getElementById('m-pr').textContent = pr !== null ? round1(pr) + ' m' : '—';
+}
+
+function renderPRStrip() {
+  const used = IMPLEMENTS.filter(w => allThrowsFlat().some(t => t.implement === w && isValid(t)));
+  const strip = document.getElementById('pr-strip');
+  if (used.length === 0) { strip.innerHTML = ''; return; }
+  strip.innerHTML = used.map(w => {
+    const pr = prFor(w);
+    return '<div class="pr-chip' + (currentImplFilter === w ? ' active' : '') + '" data-impl="' + w + '">' + w + ' PR &middot; <b>' + round1(pr) + ' m</b></div>';
+  }).join('');
+  strip.querySelectorAll('.pr-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      currentImplFilter = currentImplFilter === chip.dataset.impl ? 'all' : chip.dataset.impl;
+      renderAll();
+    });
+  });
+}
+
+/* ---------- Chart ---------- */
+function straightPath(pts) {
+  if (pts.length < 2) return '';
+  return pts.map((p, i) => (i === 0 ? 'M ' : 'L ') + p.x + ',' + p.y).join(' ');
+}
+function smoothPath(pts) {
+  if (pts.length < 2) return '';
+  let d = 'M ' + pts[0].x + ',' + pts[0].y;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i === 0 ? i : i - 1], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
+    const c1x = p1.x + (p2.x - p0.x) / 6, c1y = p1.y + (p2.y - p0.y) / 6;
+    const c2x = p2.x - (p3.x - p1.x) / 6, c2y = p2.y - (p3.y - p1.y) / 6;
+    d += ' C ' + c1x + ',' + c1y + ' ' + c2x + ',' + c2y + ' ' + p2.x + ',' + p2.y;
+  }
+  return d;
+}
+function niceStep(range) {
+  const rough = range / 4;
+  const mag = Math.pow(10, Math.floor(Math.log10(rough || 1)));
+  const norm = rough / mag;
+  return (norm < 1.5 ? 1 : norm < 3 ? 2 : norm < 7 ? 5 : 10) * mag;
+}
+function shortDate(iso) {
+  const d = new Date(iso);
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+/* ---------- Chart bucketing: session/week/month, auto-picked by density ---------- */
+function mondayOf(dateKey) {
+  const d = new Date(dateKey + 'T12:00:00');
+  const day = d.getDay();
+  const diff = (day === 0 ? -6 : 1 - day);
+  d.setDate(d.getDate() + diff);
+  return d.toISOString().slice(0, 10);
+}
+function monthOf(dateKey) { return dateKey.slice(0, 7); }
+
+function pickAutoGranularity(dayCount) {
+  if (dayCount <= 15) return 'session';
+  if (dayCount <= 45) return 'week';
+  return 'month';
+}
+
+function bucketThrows(throws, granularity) {
+  const map = new Map();
+  throws.forEach(t => {
+    const dateKey = t.date.slice(0, 10);
+    const key = granularity === 'week' ? mondayOf(dateKey) : granularity === 'month' ? monthOf(dateKey) : dateKey;
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(t);
+  });
+  return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([key, group]) => ({ key, throws: group }));
+}
+
+function bucketLabel(key, granularity) {
+  if (granularity === 'month') {
+    return new Date(key + '-01T12:00:00').toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+  }
+  if (granularity === 'week') {
+    return 'Wk of ' + shortDate(key + 'T12:00:00');
+  }
+  return shortDate(key + 'T12:00:00');
+}
+
+function renderGranularityRow(autoPick) {
+  const row = document.getElementById('granularity-row');
+  const opts = [
+    { key: 'auto', label: 'Auto (' + (autoPick === 'session' ? 'Day' : autoPick === 'week' ? 'Week' : 'Month') + ')' },
+    { key: 'session', label: 'Day' },
+    { key: 'week', label: 'Week' },
+    { key: 'month', label: 'Month' }
+  ];
+  row.innerHTML = '<span class="granularity-label">Chart grouping:</span>' + opts.map(o =>
+    '<button class="range-btn' + (chartGranularity === o.key ? ' active' : '') + '" data-gran="' + o.key + '">' + o.label + '</button>'
+  ).join('');
+  row.querySelectorAll('.range-btn').forEach(btn => {
+    btn.addEventListener('click', () => { chartGranularity = btn.dataset.gran; renderChart(filteredThrows()); });
+  });
+}
+
+function renderLineStyleRow() {
+  const row = document.getElementById('linestyle-row');
+  const opts = [{ key: 'straight', label: 'Straight' }, { key: 'smooth', label: 'Smooth' }];
+  row.innerHTML = '<span class="granularity-label">Line style:</span>' + opts.map(o =>
+    '<button class="range-btn' + (chartLineStyle === o.key ? ' active' : '') + '" data-line="' + o.key + '">' + o.label + '</button>'
+  ).join('');
+  row.querySelectorAll('.range-btn').forEach(btn => {
+    btn.addEventListener('click', () => { chartLineStyle = btn.dataset.line; renderChart(filteredThrows()); });
+  });
+}
+
+function renderChart(throws) {
+  const wrap = document.getElementById('chart-wrap');
+  const plottable = throws.filter(t => t.distance != null);
+  if (plottable.length === 0) { wrap.innerHTML = '<div id="chart-empty">No throws with a recorded distance in this range yet.</div>'; return; }
+
+  const dayCount = new Set(plottable.map(t => t.date.slice(0, 10))).size;
+  const autoPick = pickAutoGranularity(dayCount);
+  const granularity = chartGranularity === 'auto' ? autoPick : chartGranularity;
+  renderGranularityRow(autoPick);
+  renderLineStyleRow();
+
+  // bucket into sessions/weeks/months (chronological, oldest first); the line connects one point per bucket
+  const buckets = bucketThrows(plottable, granularity);
+  if (buckets.length === 0) { wrap.innerHTML = '<div id="chart-empty">No throws with a recorded distance in this range yet.</div>'; return; }
+
+  const h = 260, padL = 34, padR = 16, padT = 26, padB = 34;
+  const PX_PER_BUCKET = 78;
+  const containerW = wrap.clientWidth || 900;
+  const w = Math.max(containerW, buckets.length * PX_PER_BUCKET);
+  const dists = plottable.map(t => t.distance);
+  const rawMin = Math.min(...dists), rawMax = Math.max(...dists);
+  const step = niceStep(rawMax - rawMin || 4);
+  const minD = Math.floor((rawMin - step * 0.5) / step) * step;
+  const maxD = Math.ceil((rawMax + step * 0.5) / step) * step;
+  const range = (maxD - minD) || 1;
+  const yFor = d => padT + (h - padT - padB) * (1 - (d - minD) / range);
+  const xFor = i => buckets.length === 1 ? (padL + (w - padL - padR) / 2) : padL + (w - padL - padR) * (i / (buckets.length - 1));
+
+  let gridLines = '', yLabels = '';
+  for (let v = minD; v <= maxD + 0.001; v += step) {
+    const y = yFor(v);
+    gridLines += '<line x1="' + padL + '" y1="' + y + '" x2="' + (w - padR) + '" y2="' + y + '" stroke="#262626" stroke-width="1"/>';
+    yLabels += '<text x="' + (padL - 8) + '" y="' + (y + 4) + '" text-anchor="end" font-family="Inter" font-size="11" fill="#666">' + round1(v) + '</text>';
+  }
+
+  const validForBest = plottable.filter(isValid);
+  const rangeBest = validForBest.length ? Math.max(...validForBest.map(t => t.distance)) : null;
+
+  // anchor = each bucket's best (valid, non-foul) throw; the line/area only ever passes through anchors.
+  // when a bucket spans multiple throws (week/month, or a heavy day), dots beyond a cap are thinned to keep it legible.
+  const anchorPts = [];
+  let guideLines = '', dots = '';
+  const DOT_CAP = 10;
+
+  buckets.forEach((bucket, i) => {
+    const x = xFor(i);
+    const valid = bucket.throws.filter(isValid);
+    const anchor = valid.length ? valid.reduce((a, b) => (b.distance > a.distance ? b : a)) : null;
+    if (anchor) anchorPts.push({ x, y: yFor(anchor.distance) });
+
+    const ys = bucket.throws.map(t => yFor(t.distance));
+    if (ys.length > 1) {
+      guideLines += '<line x1="' + x + '" y1="' + Math.min(...ys) + '" x2="' + x + '" y2="' + Math.max(...ys) + '" stroke="#262626" stroke-width="1"/>';
+    }
+
+    let toPlot = bucket.throws;
+    let hiddenCount = 0;
+    if (toPlot.length > DOT_CAP) {
+      // always keep the anchor and the foul throws visible; sample evenly through the rest
+      const rest = toPlot.filter(t => !anchor || t.id !== anchor.id);
+      const keepN = DOT_CAP - 1;
+      const sampled = rest.filter((t, idx) => idx % Math.ceil(rest.length / keepN) === 0).slice(0, keepN);
+      hiddenCount = toPlot.length - sampled.length - (anchor ? 1 : 0);
+      toPlot = anchor ? [anchor, ...sampled] : sampled;
+    }
+
+    toPlot.forEach(t => {
+      const y = yFor(t.distance);
+      const isAnchor = anchor && t.id === anchor.id;
+      const isBest = isValid(t) && t.distance === rangeBest;
+      const sel = t.id === selectedThrowId;
+      const r = isAnchor ? (sel ? 7 : 5.5) : (sel ? 5.5 : 3.5);
+      const hasVid = t.video ? '<circle cx="' + x + '" cy="' + y + '" r="' + (r + 3.5) + '" fill="none" stroke="#2a78d6" stroke-width="1.5" opacity="0.5"/>' : '';
+      let dot;
+      if (t.foul) {
+        dot = '<circle cx="' + x + '" cy="' + y + '" r="' + r + '" fill="' + (sel ? '#ef4444' : '#0a0a0a') + '" stroke="#ef4444" stroke-width="' + (isAnchor ? 2 : 1.5) + '" opacity="' + (isAnchor ? 1 : 0.7) + '" onclick="selectThrow(\'' + t.id + '\')"/>';
+      } else {
+        const fill = isBest ? '#f0c020' : (sel ? '#ffffff' : '#2a78d6');
+        const stroke = isBest ? (sel ? '#2a78d6' : '#8a6a10') : (sel ? '#2a78d6' : 'none');
+        dot = '<circle cx="' + x + '" cy="' + y + '" r="' + r + '" fill="' + fill + '" stroke="' + stroke + '" stroke-width="2" opacity="' + (isAnchor ? 1 : 0.55) + '" onclick="selectThrow(\'' + t.id + '\')"/>';
+      }
+      dots += hasVid + dot;
+    });
+
+    if (hiddenCount > 0) {
+      const topY = Math.min(...ys);
+      dots += '<text x="' + x + '" y="' + (topY - 10) + '" text-anchor="middle" font-family="Inter" font-size="10" fill="#666">+' + hiddenCount + '</text>';
+    }
+  });
+
+  const linePath = (chartLineStyle === 'smooth' ? smoothPath : straightPath)(anchorPts);
+  const areaPath = anchorPts.length > 1 ? linePath + ' L ' + anchorPts[anchorPts.length - 1].x + ',' + (h - padB) + ' L ' + anchorPts[0].x + ',' + (h - padB) + ' Z' : '';
+
+  // pick evenly-spaced label indices (always including first & last) with a minimum pixel gap, so end labels never collide
+  const minLabelGapPx = 60;
+  const usableW = w - padL - padR;
+  let maxLabels = Math.max(2, Math.floor(usableW / minLabelGapPx) + 1);
+  maxLabels = Math.min(maxLabels, buckets.length);
+  const showIdx = new Set();
+  if (buckets.length <= 1) {
+    showIdx.add(0);
+  } else if (buckets.length <= maxLabels) {
+    buckets.forEach((_, i) => showIdx.add(i));
+  } else {
+    for (let k = 0; k < maxLabels; k++) showIdx.add(Math.round(k * (buckets.length - 1) / (maxLabels - 1)));
+  }
+  let xLabels = buckets.map((b, i) => showIdx.has(i)
+    ? '<text x="' + xFor(i) + '" y="' + (h - padB + 20) + '" text-anchor="middle" font-family="Inter" font-size="11" fill="#666">' + bucketLabel(b.key, granularity) + '</text>' : ''
+  ).join('');
+
+  wrap.innerHTML =
+    '<svg id="chart" viewBox="0 0 ' + w + ' ' + h + '" style="width:' + w + 'px;" preserveAspectRatio="none">' +
+    '<defs><linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">' +
+    '<stop offset="0%" stop-color="#2a78d6" stop-opacity="0.35"/><stop offset="100%" stop-color="#2a78d6" stop-opacity="0"/>' +
+    '</linearGradient></defs>' +
+    gridLines + yLabels + guideLines +
+    (areaPath ? '<path d="' + areaPath + '" fill="url(#areaGrad)"/>' : '') +
+    '<path d="' + linePath + '" fill="none" stroke="#2a78d6" stroke-width="2.5"/>' +
+    dots + xLabels +
+    '</svg>';
+}
+
+/* ---------- Table (grouped by session/date) ---------- */
+function escapeHtml(s) { const div = document.createElement('div'); div.textContent = s; return div.innerHTML; }
+
+function groupByDate(throws) {
+  const map = new Map();
+  throws.forEach(t => {
+    const key = t.date.slice(0, 10);
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(t);
+  });
+  return [...map.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+}
+
+function renderTable(throws) {
+  const seasonName = currentSeason().name;
+  const implLabel = currentImplFilter === 'all' ? '' : ' · ' + currentImplFilter;
+  const typeLabel = currentTypeFilter === 'all' ? '' : ' · ' + currentTypeFilter;
+  document.getElementById('table-title').textContent = seasonName + ' — ' + (RANGES.find(r => r.key === currentRange).label) + implLabel + typeLabel;
+  const wrap = document.getElementById('table-wrap');
+  if (throws.length === 0) { wrap.innerHTML = '<div class="empty-state">No throws yet — log your first one above.</div>'; return; }
+
+  const rangeValid = throws.filter(isValid);
+  const rangeBest = rangeValid.length ? Math.max(...rangeValid.map(t => t.distance)) : null;
+
+  const groups = groupByDate(throws);
+  let body = '';
+  groups.forEach(([dateKey, group]) => {
+    const valid = group.filter(isValid);
+    const avg = valid.length ? round1(valid.reduce((a, b) => a + b.distance, 0) / valid.length) : null;
+    const sessionBest = valid.length ? Math.max(...valid.map(t => t.distance)) : null;
+    const dLabel = new Date(dateKey + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+    body += '<tr class="session-row"><td colspan="8"><b>' + dLabel + '</b> &middot; ' + group.length + ' throw' + (group.length !== 1 ? 's' : '') +
+      (avg !== null ? ' &middot; avg ' + avg + ' m &middot; best ' + round1(sessionBest) + ' m' : '') + '</td></tr>';
+    [...group].reverse().forEach(t => {
+      const wobbleText = t.wobble ? '<span class="wobble-' + t.wobble + '">' + t.wobble + '</span>' : '<span style="color:var(--text-2)">—</span>';
+      const distText = t.distance != null ? round1(t.distance) + ' m' : '—';
+      let star = '';
+      if (isValid(t) && t.distance === rangeBest) star = '<span class="star star-range" title="Best in this timeframe">&#9733;</span>';
+      else if (isValid(t) && t.distance === sessionBest) star = '<span class="star star-session" title="Best this session">&#9733;</span>';
+      body += '<tr class="throw-row' + (t.foul ? ' foul-row' : '') + (t.id === selectedThrowId ? ' selected' : '') + '" onclick="selectThrow(\'' + t.id + '\')">' +
+        '<td class="num dist">' + star + distText + (t.foul ? '<span class="foul-tag">FOUL</span>' : '') + '</td>' +
+        '<td class="small">' + (t.implement || '—') + '</td>' +
+        '<td class="small">' + (t.wind || '—') + '</td>' +
+        '<td class="small">' + (t.throwType || '—') + '</td>' +
+        '<td>' + wobbleText + '</td>' +
+        '<td class="notes">' + (t.notes ? escapeHtml(t.notes) : '') + '</td>' +
+        '<td class="vidcol">' + (t.video ? '&#127909;' : '') + '</td>' +
+        '<td class="delcol"><button class="del-btn" title="Delete throw" onclick="event.stopPropagation(); deleteThrow(\'' + t.id + '\')">&times;</button></td>' +
+        '</tr>';
+    });
+  });
+
+  wrap.innerHTML = '<table><thead><tr>' +
+    '<th class="num">Distance</th><th>Implement</th><th>Wind</th><th>Type</th><th>Wobble</th><th>Notes</th><th></th><th></th>' +
+    '</tr></thead><tbody>' + body + '</tbody></table>';
+}
+
+/* ---------- Detail panel + video ---------- */
+function parseVideoLink(url) {
+  try {
+    const u = new URL(url);
+    if (u.hostname.includes('youtube.com') || u.hostname.includes('youtu.be')) {
+      let vid = u.hostname.includes('youtu.be') ? u.pathname.slice(1) : u.searchParams.get('v');
+      if (vid) return { platform: 'youtube', embedUrl: 'https://www.youtube.com/embed/' + vid };
+    }
+    if (u.hostname.includes('instagram.com')) return { platform: 'instagram', url };
+    if (u.hostname.includes('drive.google.com')) {
+      const m = u.pathname.match(/\/file\/d\/([^/]+)/);
+      if (m) return { platform: 'drive', embedUrl: 'https://drive.google.com/file/d/' + m[1] + '/preview' };
+    }
+    if (/\.(mp4|webm|mov)$/i.test(u.pathname)) return { platform: 'direct', embedUrl: url };
+    return { platform: 'other', url };
+  } catch (e) { return { platform: 'other', url }; }
+}
+
+let igScriptLoaded = false;
+function loadInstagramEmbed() {
+  return new Promise(resolve => {
+    if (window.instgrm) { resolve(); return; }
+    if (igScriptLoaded) { setTimeout(() => resolve(), 500); return; }
+    igScriptLoaded = true;
+    const s = document.createElement('script');
+    s.src = 'https://www.instagram.com/embed.js';
+    s.async = true;
+    s.onload = () => resolve();
+    document.body.appendChild(s);
+  });
+}
+
+async function renderVideoBox(t) {
+  const box = document.getElementById('video-box');
+  const frameWrap = document.getElementById('frame-controls-wrap');
+  frameWrap.innerHTML = '';
+  if (!t.video) { box.innerHTML = '<div class="video-empty">No video attached yet</div>'; return; }
+
+  if (t.video.type === 'upload') {
+    box.innerHTML = '<video id="video-player" controls></video>';
+    const blob = await getVideoBlob(t.id);
+    if (!blob) { box.innerHTML = '<div class="video-empty">Video file not found in this browser.</div>'; return; }
+    const url = URL.createObjectURL(blob);
+    const player = box.querySelector('video');
+    player.src = url;
+    renderFrameControls(player);
+    return;
+  }
+
+  const parsed = parseVideoLink(t.video.url);
+  if (parsed.platform === 'youtube' || parsed.platform === 'drive') {
+    box.innerHTML = '<iframe src="' + parsed.embedUrl + '" allowfullscreen></iframe>';
+  } else if (parsed.platform === 'instagram') {
+    box.innerHTML = '<blockquote class="instagram-media" data-instgrm-permalink="' + t.video.url + '" data-instgrm-version="14" style="margin:0;"></blockquote>';
+    await loadInstagramEmbed();
+    if (window.instgrm) window.instgrm.Embeds.process();
+  } else if (parsed.platform === 'direct') {
+    box.innerHTML = '<video id="video-player" controls src="' + parsed.embedUrl + '"></video>';
+    renderFrameControls(box.querySelector('video'));
+  } else {
+    box.innerHTML = '<div class="video-empty">Can\'t preview this link inline.<br><a href="' + t.video.url + '" target="_blank" rel="noopener" style="color:var(--blue)">Open video &#8599;</a></div>';
+  }
+}
+
+function renderFrameControls(player) {
+  const frameWrap = document.getElementById('frame-controls-wrap');
+  const FRAME = 1 / 30;
+  frameWrap.innerHTML =
+    '<div class="frame-controls">' +
+    '<button class="speed-btn" data-speed="0.25">0.25x</button>' +
+    '<button class="speed-btn" data-speed="0.5">0.5x</button>' +
+    '<button class="speed-btn active" data-speed="1">1x</button>' +
+    '<div class="spacer"></div>' +
+    '<button class="step-btn" id="step-back">&#9664;| step</button>' +
+    '<button class="step-btn" id="step-fwd">step |&#9654;</button>' +
+    '</div>';
+  frameWrap.querySelectorAll('.speed-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      player.playbackRate = parseFloat(btn.dataset.speed);
+      frameWrap.querySelectorAll('.speed-btn').forEach(b => b.classList.toggle('active', b === btn));
+    });
+  });
+  frameWrap.querySelector('#step-back').addEventListener('click', () => {
+    player.pause();
+    player.currentTime = Math.max(0, player.currentTime - FRAME);
+  });
+  frameWrap.querySelector('#step-fwd').addEventListener('click', () => {
+    player.pause();
+    player.currentTime = player.currentTime + FRAME;
+  });
+}
+
+function renderDetailPanel() {
+  const panel = document.getElementById('detail-panel');
+  if (!selectedThrowId) { panel.classList.remove('open'); panel.innerHTML = ''; return; }
+  const t = currentSeason().throws.find(x => x.id === selectedThrowId);
+  if (!t) { selectedThrowId = null; panel.classList.remove('open'); panel.innerHTML = ''; return; }
+
+  panel.classList.add('open');
+  const d = new Date(t.date);
+  const badges = [t.implement, t.wind, t.throwType].filter(Boolean).map(b => '<span class="detail-badge">' + b + '</span>').join('');
+
+  panel.innerHTML =
+    '<div class="detail-menu-wrap">' +
+    '<button class="detail-menu-btn" onclick="toggleThrowMenu(event)">&#8942;</button>' +
+    '<div class="detail-menu" id="throw-menu"><button onclick="deleteThrow(\'' + t.id + '\')">Delete throw</button></div>' +
+    '</div>' +
+    '<button class="detail-close" onclick="selectThrow(null)">&times;</button>' +
+    '<div class="detail-date">' + d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) + '</div>' +
+    '<div class="detail-dist' + (t.foul ? ' foul' : '') + '">' + (t.distance != null ? round1(t.distance) + ' m' : 'FOUL') + (t.foul ? '  &#9888; FOUL' : '') + '</div>' +
+    '<div class="detail-badges">' + badges + '</div>' +
+    '<div class="detail-stats">' +
+    '<div><div class="detail-stat-label">Wobble</div><div class="detail-stat-value ' + (t.wobble ? 'wobble-' + t.wobble : '') + '">' + (t.wobble || '—') + '</div></div>' +
+    '</div>' +
+    (t.notes ? '<div class="detail-notes">' + escapeHtml(t.notes) + '</div>' : '') +
+    '<div class="video-box" id="video-box"></div>' +
+    '<div id="frame-controls-wrap"></div>' +
+    (t.video ? '<button class="btn btn-sm btn-danger" id="remove-video-btn" style="width:100%;margin-bottom:16px;">Remove video</button>' :
+    '<div class="attach-tabs">' +
+      '<div class="attach-tab active" data-tab="link">Paste link</div>' +
+      '<div class="attach-tab" data-tab="upload">Upload file</div>' +
+    '</div>' +
+    '<div class="attach-form active" id="attach-link"><input type="text" id="link-input" placeholder="Instagram / YouTube / Drive URL"><button class="btn btn-sm btn-primary" id="attach-link-btn">Attach</button></div>' +
+    '<div class="attach-form" id="attach-upload" style="margin-bottom:16px;"><input type="file" id="upload-input" accept="video/*"></div>');
+
+  renderVideoBox(t);
+
+  if (t.video) {
+    document.getElementById('remove-video-btn').addEventListener('click', async () => {
+      if (t.video.type === 'upload') await deleteVideoBlob(t.id);
+      t.video = null; saveData(); renderDetailPanel(); renderAll();
+    });
+  } else {
+    panel.querySelectorAll('.attach-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        activeAttachTab = tab.dataset.tab;
+        panel.querySelectorAll('.attach-tab').forEach(x => x.classList.toggle('active', x === tab));
+        document.getElementById('attach-link').classList.toggle('active', activeAttachTab === 'link');
+        document.getElementById('attach-upload').classList.toggle('active', activeAttachTab === 'upload');
+      });
+    });
+    document.getElementById('attach-link-btn').addEventListener('click', () => {
+      const url = document.getElementById('link-input').value.trim();
+      if (!url) return;
+      t.video = { type: 'link', url };
+      saveData(); renderDetailPanel(); renderAll();
+    });
+    document.getElementById('upload-input').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      await saveVideoBlob(t.id, file);
+      t.video = { type: 'upload' };
+      saveData(); renderDetailPanel(); renderAll();
+    });
+  }
+}
+
+function selectThrow(id) {
+  selectedThrowId = id;
+  renderDetailPanel();
+  const throws = filteredThrows();
+  renderChart(throws);
+  renderTable(throws);
+}
+window.selectThrow = selectThrow;
+
+async function deleteThrow(id) {
+  const t = currentSeason().throws.find(x => x.id === id);
+  if (!t) return;
+  const label = t.distance != null ? round1(t.distance) + ' m' : 'this throw';
+  if (!confirm('Delete ' + label + '? This can\'t be undone.')) return;
+  if (t.video && t.video.type === 'upload') { try { await deleteVideoBlob(id); } catch (e) {} }
+  currentSeason().throws = currentSeason().throws.filter(x => x.id !== id);
+  saveData();
+  if (selectedThrowId === id) selectedThrowId = null;
+  renderAll();
+}
+window.deleteThrow = deleteThrow;
+
+function toggleThrowMenu(e) {
+  e.stopPropagation();
+  const menu = document.getElementById('throw-menu');
+  if (!menu) return;
+  const willOpen = !menu.classList.contains('open');
+  menu.classList.toggle('open', willOpen);
+  if (willOpen) {
+    setTimeout(() => {
+      document.addEventListener('click', function closeMenu() {
+        menu.classList.remove('open');
+        document.removeEventListener('click', closeMenu);
+      }, { once: true });
+    }, 0);
+  }
+}
+window.toggleThrowMenu = toggleThrowMenu;
+
+/* ---------- Add throw ---------- */
+document.getElementById('in-date').valueAsDate = new Date();
+document.getElementById('in-foul').addEventListener('change', (e) => {
+  document.getElementById('in-distance').required = !e.target.checked;
+});
+document.getElementById('add-throw-btn').addEventListener('click', () => {
+  const distEl = document.getElementById('in-distance');
+  const wobbleEl = document.getElementById('in-wobble');
+  const notesEl = document.getElementById('in-notes');
+  const dateEl = document.getElementById('in-date');
+  const implEl = document.getElementById('in-implement');
+  const windEl = document.getElementById('in-wind');
+  const typeEl = document.getElementById('in-type');
+  const foulEl = document.getElementById('in-foul');
+
+  const foul = foulEl.checked;
+  const distanceRaw = parseFloat(distEl.value);
+  if (!foul && (!distanceRaw || distanceRaw <= 0)) { distEl.focus(); return; }
+  const distance = (distanceRaw && distanceRaw > 0) ? distanceRaw : null;
+
+  const dateVal = dateEl.value || new Date().toISOString().slice(0, 10);
+  const throwsToday = currentSeason().throws.filter(t => t.date.slice(0, 10) === dateVal).length;
+
+  currentSeason().throws.push({
+    id: makeId(),
+    date: dateVal + 'T12:' + String(throwsToday).padStart(2, '0') + ':00',
+    distance,
+    implement: implEl.value || null,
+    wobble: wobbleEl.value || null,
+    wind: windEl.value || null,
+    throwType: typeEl.value || null,
+    foul,
+    notes: notesEl.value.trim() || null,
+    video: null
+  });
+  saveData();
+  distEl.value = ''; wobbleEl.value = ''; notesEl.value = ''; foulEl.checked = false; distEl.required = true;
+  distEl.focus();
+  renderAll();
+});
+
+/* ---------- Export / Import ---------- */
+function downloadBlob(content, filename, mime) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+document.getElementById('export-json-btn').addEventListener('click', () => {
+  downloadBlob(JSON.stringify(data, null, 2), 'discus-throw-log-backup.json', 'application/json');
+});
+
+document.getElementById('export-csv-btn').addEventListener('click', () => {
+  const cols = ['season', 'date', 'distance_m', 'foul', 'implement', 'wobble', 'wind', 'throw_type', 'notes', 'has_video'];
+  const esc = v => {
+    if (v === null || v === undefined) return '';
+    const s = String(v);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+  const rows = [cols.join(',')];
+  Object.values(data.seasons).forEach(s => {
+    s.throws.forEach(t => {
+      rows.push([
+        esc(s.name), esc(t.date), esc(t.distance), esc(t.foul), esc(t.implement),
+        esc(t.wobble), esc(t.wind), esc(t.throwType), esc(t.notes), esc(t.video ? t.video.type : '')
+      ].join(','));
+    });
+  });
+  downloadBlob(rows.join('\n'), 'discus-throw-log.csv', 'text/csv');
+});
+
+document.getElementById('import-btn').addEventListener('click', () => document.getElementById('import-file').click());
+document.getElementById('import-file').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const imported = JSON.parse(reader.result);
+      if (!imported.seasons) throw new Error('Not a valid backup file');
+      const seasonCount = Object.keys(imported.seasons).length;
+      const throwCount = Object.values(imported.seasons).reduce((a, s) => a + s.throws.length, 0);
+      if (!confirm('Import ' + seasonCount + ' season(s) and ' + throwCount + ' throw(s)? This merges into your existing data (matching season IDs will have throws combined).')) return;
+      Object.values(imported.seasons).forEach(s => {
+        if (!data.seasons[s.id]) {
+          data.seasons[s.id] = { id: s.id, name: s.name, throws: s.throws.map(upgradeThrow) };
+        } else {
+          const existingIds = new Set(data.seasons[s.id].throws.map(t => t.id));
+          s.throws.forEach(t => { if (!existingIds.has(t.id)) data.seasons[s.id].throws.push(upgradeThrow(t)); });
+        }
+      });
+      saveData();
+      renderAll();
+      alert('Import complete.');
+    } catch (err) {
+      alert('Could not import file: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+});
+
+/* ---------- Cloud sync (Firebase: Google Sign-In + Firestore) ---------- */
+const CLOUD_CONFIG_KEY = 'discusFirebaseConfigV1';
+const CLOUD_COLLECTION = 'throwlog_users';
+
+let fbAuth = null, fbDb = null, cloudUser = null;
+let cloudUnsub = null, pushTimer = null, cloudSyncing = false, lastPushedAt = 0, cloudError = null;
+
+function loadCloudConfig() {
+  try { return JSON.parse(localStorage.getItem(CLOUD_CONFIG_KEY)); } catch (e) { return null; }
+}
+function saveCloudConfig(cfg) { localStorage.setItem(CLOUD_CONFIG_KEY, JSON.stringify(cfg)); }
+function clearCloudConfig() { localStorage.removeItem(CLOUD_CONFIG_KEY); }
+
+function initFirebase(cfg) {
+  try {
+    if (!firebase.apps.length) firebase.initializeApp(cfg);
+    fbAuth = firebase.auth();
+    fbDb = firebase.firestore();
+    fbAuth.onAuthStateChanged(onAuthChanged);
+    return true;
+  } catch (e) {
+    cloudError = 'Could not connect with that config: ' + e.message;
+    return false;
+  }
+}
+
+function onAuthChanged(user) {
+  cloudUser = user;
+  if (cloudUnsub) { cloudUnsub(); cloudUnsub = null; }
+  if (user) {
+    firstSyncIfNeeded(user.uid).then(() => startCloudListener(user.uid));
+  }
+  renderSyncButton();
+}
+
+async function firstSyncIfNeeded(uid) {
+  const marker = 'discusFirstSyncDone_' + uid;
+  if (localStorage.getItem(marker)) return;
+  try {
+    const doc = await fbDb.collection(CLOUD_COLLECTION).doc(uid).get();
+    if (doc.exists && doc.data() && doc.data().data) {
+      mergeRemoteAdditive(doc.data().data);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    }
+    await pushToCloud();
+    localStorage.setItem(marker, '1');
+    renderAll();
+  } catch (e) {
+    cloudError = 'Initial sync failed: ' + e.message;
+    renderSyncButton();
+  }
+}
+
+function mergeRemoteAdditive(remote) {
+  Object.values(remote.seasons || {}).forEach(s => {
+    if (!data.seasons[s.id]) {
+      data.seasons[s.id] = { id: s.id, name: s.name, throws: s.throws.map(upgradeThrow) };
+    } else {
+      const existingIds = new Set(data.seasons[s.id].throws.map(t => t.id));
+      s.throws.forEach(t => { if (!existingIds.has(t.id)) data.seasons[s.id].throws.push(upgradeThrow(t)); });
+    }
+  });
+}
+
+function startCloudListener(uid) {
+  cloudUnsub = fbDb.collection(CLOUD_COLLECTION).doc(uid).onSnapshot(doc => {
+    if (!doc.exists) return;
+    const remote = doc.data();
+    if (!remote || !remote.data || !remote.updatedAt) return;
+    if (remote.updatedAt <= lastPushedAt) return; // our own write echoing back, or stale
+    cloudSyncing = true;
+    data = remote.data;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    lastPushedAt = remote.updatedAt;
+    selectedThrowId = null;
+    renderAll();
+    cloudSyncing = false;
+  }, err => {
+    cloudError = 'Sync connection lost: ' + err.message;
+    renderSyncButton();
+  });
+}
+
+function scheduleCloudPush() {
+  if (!cloudUser || cloudSyncing) return;
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(pushToCloud, 900);
+}
+
+async function pushToCloud() {
+  if (!cloudUser || !fbDb) return;
+  const ts = Date.now();
+  try {
+    await fbDb.collection(CLOUD_COLLECTION).doc(cloudUser.uid).set({ data, updatedAt: ts });
+    lastPushedAt = ts;
+    cloudError = null;
+  } catch (e) {
+    cloudError = 'Could not sync: ' + e.message;
+  }
+  renderSyncButton();
+}
+
+function signInWithGoogle() {
+  cloudError = null;
+  fbAuth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e => {
+    cloudError = 'Sign-in failed: ' + e.message;
+    renderSyncModal();
+  });
+}
+function signOutCloud() {
+  fbAuth.signOut();
+  closeSyncModal();
+}
+function disconnectCloud() {
+  if (!confirm('Disconnect this Firebase project? You\'ll need to paste your config again to reconnect. Your local data stays on this device either way.')) return;
+  if (cloudUnsub) { cloudUnsub(); cloudUnsub = null; }
+  if (fbAuth) fbAuth.signOut();
+  clearCloudConfig();
+  cloudUser = null; fbAuth = null; fbDb = null;
+  renderSyncButton();
+  closeSyncModal();
+}
+
+function renderSyncButton() {
+  const btn = document.getElementById('sync-btn');
+  const cfg = loadCloudConfig();
+  if (cloudUser) {
+    btn.textContent = (cloudUser.displayName ? cloudUser.displayName.split(' ')[0] : cloudUser.email) + ' · Synced';
+    btn.classList.remove('btn-primary');
+  } else if (cfg) {
+    btn.textContent = 'Sign in to sync';
+    btn.classList.add('btn-primary');
+  } else {
+    btn.textContent = 'Cloud sync';
+    btn.classList.add('btn-primary');
+  }
+  if (document.getElementById('sync-modal').classList.contains('open')) renderSyncModal();
+}
+
+function openSyncModal() {
+  document.getElementById('sync-modal').classList.add('open');
+  renderSyncModal();
+}
+function closeSyncModal() {
+  document.getElementById('sync-modal').classList.remove('open');
+}
+
+function parseFirebaseConfigPaste(raw) {
+  let s = raw.trim();
+  // prefer the object literal assigned to a variable, e.g. "const firebaseConfig = { ... };"
+  // this correctly skips over any import statements' own { } if the whole code sample was pasted
+  const assignMatch = s.match(/=\s*(\{[\s\S]*?\})\s*;/);
+  if (assignMatch) {
+    s = assignMatch[1];
+  } else {
+    s = s.replace(/^(export\s+)?(const|let|var)\s+\w+\s*=\s*/, '').replace(/;\s*$/, '');
+    const start = s.indexOf('{');
+    const end = s.lastIndexOf('}');
+    if (start !== -1 && end !== -1 && end > start) s = s.slice(start, end + 1);
+  }
+  s = s.replace(/\/\/.*$/gm, '');
+  s = s.replace(/([{,]\s*)([A-Za-z_$][\w$]*)\s*:/g, '$1"$2":');
+  s = s.replace(/'([^'\\]*)'/g, '"$1"');
+  s = s.replace(/,\s*([}\]])/g, '$1');
+  return JSON.parse(s);
+}
+
+function renderSyncModal() {
+  const modal = document.getElementById('sync-modal');
+  const cfg = loadCloudConfig();
+  const errorBox = cloudError ? '<div class="sync-error-box">' + escapeHtml(cloudError) + '</div>' : '';
+
+  let inner;
+  if (cloudUser) {
+    inner =
+      '<h3>Cloud sync</h3>' +
+      '<div class="sync-status-row"><span class="sync-dot' + (cloudError ? ' error' : '') + '"></span>Signed in as ' + escapeHtml(cloudUser.email) + '</div>' +
+      '<p>Your throw data (distances, notes, wobble, etc.) syncs automatically to every device signed into this account. Uploaded videos stay local to whichever device recorded them for now — linked videos (YouTube/Instagram/Drive) work everywhere since they\'re just URLs.</p>' +
+      errorBox +
+      '<div class="modal-actions">' +
+      '<button class="btn btn-sm" id="sync-signout-btn">Sign out</button>' +
+      '<button class="btn btn-sm btn-danger" id="sync-disconnect-btn">Disconnect project</button>' +
+      '<button class="btn btn-sm btn-primary" id="sync-close-btn">Close</button>' +
+      '</div>';
+  } else if (cfg) {
+    inner =
+      '<h3>Cloud sync</h3>' +
+      '<p>Connected to your Firebase project. Sign in with Google to sync your throw data across devices.</p>' +
+      errorBox +
+      '<div class="modal-actions">' +
+      '<button class="btn btn-sm btn-primary" id="sync-signin-btn">Sign in with Google</button>' +
+      '<button class="btn btn-sm" id="sync-close-btn">Close</button>' +
+      '</div>' +
+      '<p style="margin-top:12px;"><a href="#" id="sync-change-project-link" style="color:var(--text-2);font-size:11px;">Use a different Firebase project</a></p>';
+  } else {
+    inner =
+      '<h3>Connect cloud sync</h3>' +
+      '<p>This uses your own free Firebase project (Google\'s backend service) — nothing goes through Anthropic. About 3 minutes to set up:</p>' +
+      '<ol>' +
+      '<li>Go to <a href="https://console.firebase.google.com" target="_blank" rel="noopener" style="color:var(--blue)">console.firebase.google.com</a> and create a free project</li>' +
+      '<li>Build &rarr; Authentication &rarr; Get started &rarr; enable <b>Google</b> as a sign-in provider</li>' +
+      '<li>Build &rarr; Firestore Database &rarr; Create database (default settings are fine)</li>' +
+      '<li>Firestore Database &rarr; Rules &rarr; replace with the snippet below &rarr; Publish</li>' +
+      '<li>Project settings (gear icon) &rarr; scroll to "Your apps" &rarr; Add app &rarr; Web &rarr; copy the <code>firebaseConfig</code> object</li>' +
+      '<li>Paste that whole object below</li>' +
+      '</ol>' +
+      '<pre style="font-size:10px;background:var(--bg-2);border:1px solid var(--line);border-radius:6px;padding:8px;white-space:pre-wrap;margin-bottom:12px;color:var(--text-1);">rules_version = \'2\';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    match /' + CLOUD_COLLECTION + '/{uid} {\n      allow read, write: if request.auth != null && request.auth.uid == uid;\n    }\n  }\n}</pre>' +
+      '<textarea id="fb-config-input" placeholder=\'{ "apiKey": "...", "authDomain": "...", "projectId": "...", ... }\'></textarea>' +
+      errorBox +
+      '<div class="modal-actions">' +
+      '<button class="btn btn-sm" id="sync-cancel-btn">Cancel</button>' +
+      '<button class="btn btn-sm btn-primary" id="sync-save-btn">Connect</button>' +
+      '</div>';
+  }
+  modal.innerHTML = '<div class="modal-card">' + inner + '</div>';
+
+  const byId = (id) => document.getElementById(id);
+  if (byId('sync-close-btn')) byId('sync-close-btn').addEventListener('click', closeSyncModal);
+  if (byId('sync-cancel-btn')) byId('sync-cancel-btn').addEventListener('click', closeSyncModal);
+  if (byId('sync-signin-btn')) byId('sync-signin-btn').addEventListener('click', signInWithGoogle);
+  if (byId('sync-signout-btn')) byId('sync-signout-btn').addEventListener('click', signOutCloud);
+  if (byId('sync-disconnect-btn')) byId('sync-disconnect-btn').addEventListener('click', disconnectCloud);
+  if (byId('sync-change-project-link')) byId('sync-change-project-link').addEventListener('click', (e) => { e.preventDefault(); disconnectCloud(); openSyncModal(); });
+  if (byId('sync-save-btn')) byId('sync-save-btn').addEventListener('click', () => {
+    const raw = byId('fb-config-input').value.trim();
+    let parsed;
+    try {
+      parsed = parseFirebaseConfigPaste(raw);
+    } catch (e) {
+      cloudError = 'That doesn\'t look like valid config — paste the whole snippet Firebase gave you (it\'s fine if it includes "const firebaseConfig = " and the semicolon, I strip those automatically).';
+      renderSyncModal();
+      return;
+    }
+    if (!parsed.apiKey || !parsed.projectId) {
+      cloudError = 'Missing apiKey or projectId — make sure you copied the whole firebaseConfig object.';
+      renderSyncModal();
+      return;
+    }
+    cloudError = null;
+    saveCloudConfig(parsed);
+    if (initFirebase(parsed)) { closeSyncModal(); signInWithGoogle(); }
+    else renderSyncModal();
+  });
+}
+
+document.getElementById('sync-btn').addEventListener('click', openSyncModal);
+document.getElementById('sync-modal').addEventListener('click', (e) => { if (e.target.id === 'sync-modal') closeSyncModal(); });
+
+(function initCloudOnLoad() {
+  const cfg = loadCloudConfig();
+  if (cfg) initFirebase(cfg);
+  renderSyncButton();
+})();
+
+/* ---------- Render all ---------- */
+function renderAll() {
+  populateSeasonSelect();
+  renderFilterRow();
+  renderPRStrip();
+  const throws = filteredThrows();
+  renderMetrics(throws);
+  renderChart(throws);
+  renderTable(throws);
+  renderDetailPanel();
+}
+
+renderAll();
+
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('service-worker.js').catch(() => {});
+  });
+}
+</script>
+</body>
+</html>
