@@ -244,13 +244,17 @@ tbody td.small { color: var(--text-1); font-size: 12px; }
 .sync-error-box { font-size: 12px; color: var(--red); background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); border-radius: 6px; padding: 8px 10px; margin-bottom: 12px; }
 
 @media (max-width: 900px) {
-  .layout { flex-direction: column; }
+  .layout { flex-direction: column; align-items: stretch; }
+  main { width: 100%; }
   #detail-panel { width: 100%; border-left: none; border-top: 1px solid var(--line); position: static; max-height: none; }
 }
 @media (max-width: 640px) {
   .topbar { padding: 12px 16px; }
   main { padding: 16px; }
   .metric-row { gap: 20px; }
+  .chart-legend .legend-hint { display: none; }
+  thead th:nth-child(3), tbody td:nth-child(3),
+  thead th:nth-child(4), tbody td:nth-child(4) { display: none; }
 }
 </style>
 </head>
@@ -296,7 +300,7 @@ tbody td.small { color: var(--text-1); font-size: 12px; }
 
       <div class="panel">
         <div class="chart-legend">
-          <div class="legend-item"><span class="swatch"></span>Bucket best (line) · click any point for details</div>
+          <div class="legend-item"><span class="swatch"></span>Bucket best (line)<span class="legend-hint"> · click any point for details</span></div>
           <div class="legend-item"><span class="swatch" style="opacity:0.5;width:7px;height:7px;"></span>Other throws in bucket</div>
           <div class="legend-item"><span class="swatch foul"></span>Foul</div>
           <div class="legend-item"><span class="swatch" style="background:#f0c020;"></span>Best in range</div>
@@ -887,7 +891,7 @@ function renderTable(throws) {
     const avg = valid.length ? round1(valid.reduce((a, b) => a + b.distance, 0) / valid.length) : null;
     const sessionBest = valid.length ? Math.max(...valid.map(t => t.distance)) : null;
     const dLabel = new Date(dateKey + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
-    body += '<tr class="session-row"><td colspan="8"><b>' + dLabel + '</b> &middot; ' + group.length + ' throw' + (group.length !== 1 ? 's' : '') +
+    body += '<tr class="session-row"><td colspan="100"><b>' + dLabel + '</b> &middot; ' + group.length + ' throw' + (group.length !== 1 ? 's' : '') +
       (avg !== null ? ' &middot; avg ' + avg + ' m &middot; best ' + round1(sessionBest) + ' m' : '') + '</td></tr>';
     [...group].reverse().forEach(t => {
       const wobbleText = t.wobble ? '<span class="wobble-' + t.wobble + '">' + t.wobble + '</span>' : '<span style="color:var(--text-2)">—</span>';
