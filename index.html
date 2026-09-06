@@ -200,6 +200,8 @@ tbody td.small { color: var(--text-1); font-size: 12px; }
 .detail-notes { font-size: 13px; color: var(--text-1); margin-bottom: 20px; line-height: 1.5; }
 .video-box { width: 100%; min-height: 220px; background: var(--bg-2); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; margin-bottom: 10px; display: flex; align-items: center; justify-content: center; }
 .video-box video, .video-box iframe { width: 100%; height: 100%; min-height: 220px; border: 0; display: block; }
+.video-box.vertical { max-width: 260px; margin-left: auto; margin-right: auto; min-height: 0; aspect-ratio: 9 / 16; }
+.video-box.vertical video, .video-box.vertical iframe { min-height: 0; height: 100%; }
 .video-box .instagram-media { margin: 0 !important; width: 100% !important; }
 .video-empty { color: var(--text-2); font-size: 12px; text-align: center; padding: 20px; }
 .frame-controls { display: flex; align-items: center; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
@@ -922,10 +924,24 @@ function parseVideoLink(url) {
   try {
     const u = new URL(url);
     if (u.hostname.includes('youtube.com') || u.hostname.includes('youtu.be')) {
-      let vid = u.hostname.includes('youtu.be') ? u.pathname.slice(1) : u.searchParams.get('v');
-      if (vid) return { platform: 'youtube', embedUrl: 'https://www.youtube.com/embed/' + vid };
+      let vid = null;
+      let vertical = false;
+      if (u.hostname.includes('youtu.be')) {
+        vid = u.pathname.slice(1);
+      } else if (u.pathname.startsWith('/shorts/')) {
+        vid = u.pathname.split('/shorts/')[1];
+        vertical = true;
+      } else if (u.pathname.startsWith('/embed/')) {
+        vid = u.pathname.split('/embed/')[1];
+      } else if (u.pathname.startsWith('/live/')) {
+        vid = u.pathname.split('/live/')[1];
+      } else {
+        vid = u.searchParams.get('v');
+      }
+      if (vid) vid = vid.split('/')[0].split('?')[0].split('&')[0];
+      if (vid) return { platform: 'youtube', embedUrl: 'https://www.youtube.com/embed/' + vid, vertical };
     }
-    if (u.hostname.includes('instagram.com')) return { platform: 'instagram', url };
+    if (u.hostname.includes('instagram.com')) return { platform: 'instagram', url, vertical: true };
     if (u.hostname.includes('drive.google.com')) {
       const m = u.pathname.match(/\/file\/d\/([^/]+)/);
       if (m) return { platform: 'drive', embedUrl: 'https://drive.google.com/file/d/' + m[1] + '/preview' };
@@ -953,6 +969,7 @@ async function renderVideoBox(t) {
   const box = document.getElementById('video-box');
   const frameWrap = document.getElementById('frame-controls-wrap');
   frameWrap.innerHTML = '';
+  box.classList.remove('vertical');
   if (!t.video) { box.innerHTML = '<div class="video-empty">No video attached yet</div>'; return; }
 
   if (t.video.type === 'upload') {
@@ -962,11 +979,15 @@ async function renderVideoBox(t) {
     const url = URL.createObjectURL(blob);
     const player = box.querySelector('video');
     player.src = url;
+    player.addEventListener('loadedmetadata', () => {
+      box.classList.toggle('vertical', player.videoHeight > player.videoWidth);
+    });
     renderFrameControls(player);
     return;
   }
 
   const parsed = parseVideoLink(t.video.url);
+  box.classList.toggle('vertical', !!parsed.vertical);
   if (parsed.platform === 'youtube' || parsed.platform === 'drive') {
     box.innerHTML = '<iframe src="' + parsed.embedUrl + '" allowfullscreen></iframe>';
   } else if (parsed.platform === 'instagram') {
@@ -1039,7 +1060,7 @@ function renderDetailPanel() {
       '<div class="attach-tab active" data-tab="link">Paste link</div>' +
       '<div class="attach-tab" data-tab="upload">Upload file</div>' +
     '</div>' +
-    '<div class="attach-form active" id="attach-link"><input type="text" id="link-input" placeholder="Instagram / YouTube / Drive URL"><button class="btn btn-sm btn-primary" id="attach-link-btn">Attach</button></div>' +
+    '<div class="attach-form active" id="attach-link"><input type="text" id="link-input" placeholder="YouTube (Unlisted works great), Instagram, or Drive URL"><button class="btn btn-sm btn-primary" id="attach-link-btn">Attach</button></div>' +
     '<div class="attach-form" id="attach-upload" style="margin-bottom:16px;"><input type="file" id="upload-input" accept="video/*"></div>');
 
   renderVideoBox(t);
