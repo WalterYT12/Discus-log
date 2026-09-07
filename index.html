@@ -20,6 +20,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
 
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -1244,10 +1245,26 @@ const CLOUD_CONFIG_KEY = 'discusFirebaseConfigV1';
 const CLOUD_COLLECTION = 'throwlog_users';
 
 let fbAuth = null, fbDb = null, cloudUser = null;
+let forceSetupView = false;
 let cloudUnsub = null, pushTimer = null, cloudSyncing = false, lastPushedAt = 0, cloudError = null;
 
 function loadCloudConfig() {
-  try { return JSON.parse(localStorage.getItem(CLOUD_CONFIG_KEY)); } catch (e) { return null; }
+  // a personally-pasted override (from "Use a different Firebase project") always wins;
+  // otherwise fall back to the shared config baked in via firebase-config.js
+  try {
+    const personal = JSON.parse(localStorage.getItem(CLOUD_CONFIG_KEY));
+    if (personal && personal.apiKey) return personal;
+  } catch (e) {}
+  if (window.DISCUS_FIREBASE_CONFIG && window.DISCUS_FIREBASE_CONFIG.apiKey && !window.DISCUS_FIREBASE_CONFIG.apiKey.startsWith('PASTE_')) {
+    return window.DISCUS_FIREBASE_CONFIG;
+  }
+  return null;
+}
+function isPersonalOverride() {
+  try {
+    const personal = JSON.parse(localStorage.getItem(CLOUD_CONFIG_KEY));
+    return !!(personal && personal.apiKey);
+  } catch (e) { return false; }
 }
 function saveCloudConfig(cfg) { localStorage.setItem(CLOUD_CONFIG_KEY, JSON.stringify(cfg)); }
 function clearCloudConfig() { localStorage.removeItem(CLOUD_CONFIG_KEY); }
@@ -1353,13 +1370,14 @@ function signOutCloud() {
   closeSyncModal();
 }
 function disconnectCloud() {
-  if (!confirm('Disconnect this Firebase project? You\'ll need to paste your config again to reconnect. Your local data stays on this device either way.')) return;
+  if (!confirm('Disconnect this Firebase project? Your local data stays on this device either way.')) return false;
   if (cloudUnsub) { cloudUnsub(); cloudUnsub = null; }
   if (fbAuth) fbAuth.signOut();
   clearCloudConfig();
   cloudUser = null; fbAuth = null; fbDb = null;
   renderSyncButton();
   closeSyncModal();
+  return true;
 }
 
 function renderSyncButton() {
@@ -1384,6 +1402,7 @@ function openSyncModal() {
 }
 function closeSyncModal() {
   document.getElementById('sync-modal').classList.remove('open');
+  forceSetupView = false;
 }
 
 function parseFirebaseConfigPaste(raw) {
@@ -1408,11 +1427,11 @@ function parseFirebaseConfigPaste(raw) {
 
 function renderSyncModal() {
   const modal = document.getElementById('sync-modal');
-  const cfg = loadCloudConfig();
+  const cfg = forceSetupView ? null : loadCloudConfig();
   const errorBox = cloudError ? '<div class="sync-error-box">' + escapeHtml(cloudError) + '</div>' : '';
 
   let inner;
-  if (cloudUser) {
+  if (cloudUser && !forceSetupView) {
     inner =
       '<h3>Cloud sync</h3>' +
       '<div class="sync-status-row"><span class="sync-dot' + (cloudError ? ' error' : '') + '"></span>Signed in as ' + escapeHtml(cloudUser.email) + '</div>' +
@@ -1420,9 +1439,10 @@ function renderSyncModal() {
       errorBox +
       '<div class="modal-actions">' +
       '<button class="btn btn-sm" id="sync-signout-btn">Sign out</button>' +
-      '<button class="btn btn-sm btn-danger" id="sync-disconnect-btn">Disconnect project</button>' +
+      (isPersonalOverride() ? '<button class="btn btn-sm btn-danger" id="sync-disconnect-btn">Disconnect project</button>' : '') +
       '<button class="btn btn-sm btn-primary" id="sync-close-btn">Close</button>' +
-      '</div>';
+      '</div>' +
+      (isPersonalOverride() ? '' : '<p style="margin-top:12px;"><a href="#" id="sync-change-project-link" style="color:var(--text-2);font-size:11px;">Use a different Firebase project</a></p>');
   } else if (cfg) {
     inner =
       '<h3>Cloud sync</h3>' +
@@ -1435,7 +1455,7 @@ function renderSyncModal() {
       '<p style="margin-top:12px;"><a href="#" id="sync-change-project-link" style="color:var(--text-2);font-size:11px;">Use a different Firebase project</a></p>';
   } else {
     inner =
-      '<h3>Connect cloud sync</h3>' +
+      '<h3>' + (forceSetupView ? 'Use a different Firebase project' : 'Connect cloud sync') + '</h3>' +
       '<p>This uses your own free Firebase project (Google\'s backend service) — nothing goes through Anthropic. About 3 minutes to set up:</p>' +
       '<ol>' +
       '<li>Go to <a href="https://console.firebase.google.com" target="_blank" rel="noopener" style="color:var(--blue)">console.firebase.google.com</a> and create a free project</li>' +
@@ -1461,7 +1481,10 @@ function renderSyncModal() {
   if (byId('sync-signin-btn')) byId('sync-signin-btn').addEventListener('click', signInWithGoogle);
   if (byId('sync-signout-btn')) byId('sync-signout-btn').addEventListener('click', signOutCloud);
   if (byId('sync-disconnect-btn')) byId('sync-disconnect-btn').addEventListener('click', disconnectCloud);
-  if (byId('sync-change-project-link')) byId('sync-change-project-link').addEventListener('click', (e) => { e.preventDefault(); disconnectCloud(); openSyncModal(); });
+  if (byId('sync-change-project-link')) byId('sync-change-project-link').addEventListener('click', (e) => {
+    e.preventDefault();
+    if (disconnectCloud()) { forceSetupView = true; openSyncModal(); }
+  });
   if (byId('sync-save-btn')) byId('sync-save-btn').addEventListener('click', () => {
     const raw = byId('fb-config-input').value.trim();
     let parsed;
