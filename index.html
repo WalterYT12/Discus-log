@@ -81,12 +81,6 @@ html, body { background: var(--bg-0); color: var(--text-0); font-family: var(--f
 /* ============ LAYOUT ============ */
 .layout { flex: 1; display: flex; gap: 0; max-width: 1320px; width: 100%; margin: 0 auto; align-items: flex-start; }
 main { flex: 1; min-width: 0; padding: 24px; }
-#detail-panel {
-  width: 400px; flex-shrink: 0; border-left: 1px solid var(--line);
-  padding: 24px 20px; position: sticky; top: 0; max-height: 100vh; overflow-y: auto;
-  display: none;
-}
-#detail-panel.open { display: block; }
 
 /* ============ METRIC ROW ============ */
 .metric-row { display: flex; flex-wrap: wrap; gap: 32px; align-items: flex-start; margin-bottom: 14px; }
@@ -232,6 +226,7 @@ tbody td.small { color: var(--text-1); font-size: 12px; }
   background: var(--bg-1); border: 1px solid var(--line); border-radius: 12px;
   padding: 22px; max-width: 420px; width: 100%; max-height: 85vh; overflow-y: auto;
 }
+.modal-card.wide { max-width: 480px; }
 .modal-card h3 { font-size: 15px; font-weight: 500; margin-bottom: 6px; }
 .modal-card p { font-size: 12px; color: var(--text-1); line-height: 1.6; margin-bottom: 12px; }
 .modal-card ol { font-size: 12px; color: var(--text-1); line-height: 1.7; margin: 0 0 14px 18px; }
@@ -246,10 +241,34 @@ tbody td.small { color: var(--text-1); font-size: 12px; }
 .sync-dot.error { background: var(--red); }
 .sync-error-box { font-size: 12px; color: var(--red); background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); border-radius: 6px; padding: 8px 10px; margin-bottom: 12px; }
 
+/* ============ SHARE LINK ============ */
+.share-box { background: var(--bg-2); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; }
+.share-url-row { display: flex; gap: 6px; margin-top: 6px; }
+.share-url-row input { flex: 1; background: var(--bg-1); border: 1px solid var(--line); color: var(--text-1); font-size: 11px; padding: 7px 9px; border-radius: 6px; }
+
+/* ============ SHARED (READ-ONLY) VIEW ============ */
+#shared-banner { display: none; }
+body.shared-view #shared-banner {
+  display: flex; align-items: center; gap: 10px; justify-content: center;
+  background: linear-gradient(90deg, rgba(42,120,214,0.18), rgba(42,120,214,0.06));
+  border-bottom: 1px solid var(--line); padding: 10px 16px; font-size: 13px; color: var(--text-0); text-align: center;
+}
+body.shared-view .form-panel,
+body.shared-view #new-season-btn,
+body.shared-view #import-btn,
+body.shared-view #import-file,
+body.shared-view #sync-btn,
+body.shared-view .divider-v,
+body.shared-view .del-btn,
+body.shared-view .detail-menu-wrap,
+body.shared-view .attach-tabs,
+body.shared-view .attach-form,
+body.shared-view #remove-video-btn,
+body.shared-view .kebab { display: none !important; }
+
 @media (max-width: 900px) {
   .layout { flex-direction: column; align-items: stretch; }
   main { width: 100%; }
-  #detail-panel { width: 100%; border-left: none; border-top: 1px solid var(--line); position: static; max-height: none; }
 }
 @media (max-width: 640px) {
   .topbar { padding: 12px 16px; }
@@ -285,6 +304,8 @@ tbody td.small { color: var(--text-1); font-size: 12px; }
   </header>
 
   <div class="modal-overlay" id="sync-modal"></div>
+  <div class="modal-overlay" id="detail-panel"></div>
+  <div id="shared-banner"></div>
 
   <div class="layout">
     <main>
@@ -340,10 +361,9 @@ tbody td.small { color: var(--text-1); font-size: 12px; }
       <div class="panel-title" id="table-title">This season</div>
       <div class="table-card table-scroll"><div id="table-wrap"></div></div>
     </main>
-
-    <div id="detail-panel"></div>
   </div>
 </div>
+
 
 <script>
 const STORAGE_KEY = 'discusThrowLogV3';
@@ -455,7 +475,13 @@ function loadData() {
   return fresh;
 }
 
+const urlParams = new URLSearchParams(location.search);
+const viewShareId = urlParams.get('share');
+const isSharedView = !!viewShareId;
+if (isSharedView) document.body.classList.add('shared-view');
+
 function saveData() {
+  if (isSharedView) return;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   scheduleCloudPush();
 }
@@ -865,6 +891,7 @@ function renderChart(throws) {
 
 /* ---------- Table (grouped by session/date) ---------- */
 function escapeHtml(s) { const div = document.createElement('div'); div.textContent = s; return div.innerHTML; }
+function escapeAttr(s) { return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
 function groupByDate(throws) {
   const map = new Map();
@@ -1031,6 +1058,14 @@ function renderFrameControls(player) {
   });
 }
 
+let detailEditMode = false;
+
+function buildOptionsHtml(options, current) {
+  return '<option value="">—</option>' + options.map(o =>
+    '<option value="' + o + '"' + (current === o ? ' selected' : '') + '>' + o + '</option>'
+  ).join('');
+}
+
 function renderDetailPanel() {
   const panel = document.getElementById('detail-panel');
   if (!selectedThrowId) { panel.classList.remove('open'); panel.innerHTML = ''; return; }
@@ -1039,30 +1074,63 @@ function renderDetailPanel() {
 
   panel.classList.add('open');
   const d = new Date(t.date);
-  const badges = [t.implement, t.wind, t.throwType].filter(Boolean).map(b => '<span class="detail-badge">' + b + '</span>').join('');
 
-  panel.innerHTML =
+  const header =
     '<div class="detail-menu-wrap">' +
     '<button class="detail-menu-btn" onclick="toggleThrowMenu(event)">&#8942;</button>' +
-    '<div class="detail-menu" id="throw-menu"><button onclick="deleteThrow(\'' + t.id + '\')">Delete throw</button></div>' +
+    '<div class="detail-menu" id="throw-menu">' +
+    '<button onclick="startEditThrow()">Edit throw</button>' +
+    '<button onclick="deleteThrow(\'' + t.id + '\')">Delete throw</button>' +
     '</div>' +
-    '<button class="detail-close" onclick="selectThrow(null)">&times;</button>' +
-    '<div class="detail-date">' + d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) + '</div>' +
-    '<div class="detail-dist' + (t.foul ? ' foul' : '') + '">' + (t.distance != null ? round1(t.distance) + ' m' : 'FOUL') + (t.foul ? '  &#9888; FOUL' : '') + '</div>' +
-    '<div class="detail-badges">' + badges + '</div>' +
-    '<div class="detail-stats">' +
-    '<div><div class="detail-stat-label">Wobble</div><div class="detail-stat-value ' + (t.wobble ? 'wobble-' + t.wobble : '') + '">' + (t.wobble || '—') + '</div></div>' +
     '</div>' +
-    (t.notes ? '<div class="detail-notes">' + escapeHtml(t.notes) + '</div>' : '') +
-    '<div class="video-box" id="video-box"></div>' +
-    '<div id="frame-controls-wrap"></div>' +
-    (t.video ? '<button class="btn btn-sm btn-danger" id="remove-video-btn" style="width:100%;margin-bottom:16px;">Remove video</button>' :
-    '<div class="attach-tabs">' +
-      '<div class="attach-tab active" data-tab="link">Paste link</div>' +
-      '<div class="attach-tab" data-tab="upload">Upload file</div>' +
-    '</div>' +
-    '<div class="attach-form active" id="attach-link"><input type="text" id="link-input" placeholder="YouTube (Unlisted works great), Instagram, or Drive URL"><button class="btn btn-sm btn-primary" id="attach-link-btn">Attach</button></div>' +
-    '<div class="attach-form" id="attach-upload" style="margin-bottom:16px;"><input type="file" id="upload-input" accept="video/*"></div>');
+    '<button class="detail-close" onclick="selectThrow(null)">&times;</button>';
+
+  let body;
+  if (detailEditMode) {
+    body =
+      '<div class="detail-date">Editing throw</div>' +
+      '<div class="form-row" style="margin-bottom:14px;">' +
+      '<div class="field"><label>Date</label><input type="date" id="edit-date" value="' + t.date.slice(0, 10) + '"></div>' +
+      '<div class="field"><label>Distance (m)</label><input type="number" step="0.01" id="edit-distance" value="' + (t.distance != null ? t.distance : '') + '"></div>' +
+      '<div class="field"><label>Implement</label><select id="edit-implement">' + buildOptionsHtml(IMPLEMENTS, t.implement) + '</select></div>' +
+      '<div class="field"><label>Wind</label><select id="edit-wind">' + buildOptionsHtml(WIND_OPTIONS, t.wind) + '</select></div>' +
+      '<div class="field"><label>Throw type</label><select id="edit-type">' + buildOptionsHtml(THROW_TYPES, t.throwType) + '</select></div>' +
+      '<div class="field"><label>Wobble</label><select id="edit-wobble">' + buildOptionsHtml(['Low', 'Med', 'High'], t.wobble) + '</select></div>' +
+      '<div class="field-check"><input type="checkbox" id="edit-foul"' + (t.foul ? ' checked' : '') + '><label for="edit-foul">Foul</label></div>' +
+      '<div class="field wide"><label>Notes</label><input type="text" id="edit-notes" value="' + escapeAttr(t.notes || '') + '"></div>' +
+      '</div>' +
+      '<div class="modal-actions" style="margin-bottom:16px;">' +
+      '<button class="btn btn-sm" id="edit-cancel-btn">Cancel</button>' +
+      '<button class="btn btn-sm btn-primary" id="edit-save-btn">Save changes</button>' +
+      '</div>';
+  } else {
+    const badges = [t.implement, t.wind, t.throwType].filter(Boolean).map(b => '<span class="detail-badge">' + b + '</span>').join('');
+    body =
+      '<div class="detail-date">' + d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) + '</div>' +
+      '<div class="detail-dist' + (t.foul ? ' foul' : '') + '">' + (t.distance != null ? round1(t.distance) + ' m' : 'FOUL') + (t.foul ? '  &#9888; FOUL' : '') + '</div>' +
+      '<div class="detail-badges">' + badges + '</div>' +
+      '<div class="detail-stats">' +
+      '<div><div class="detail-stat-label">Wobble</div><div class="detail-stat-value ' + (t.wobble ? 'wobble-' + t.wobble : '') + '">' + (t.wobble || '—') + '</div></div>' +
+      '</div>' +
+      (t.notes ? '<div class="detail-notes">' + escapeHtml(t.notes) + '</div>' : '') +
+      '<div class="video-box" id="video-box"></div>' +
+      '<div id="frame-controls-wrap"></div>' +
+      (t.video ? '<button class="btn btn-sm btn-danger" id="remove-video-btn" style="width:100%;margin-bottom:16px;">Remove video</button>' :
+      '<div class="attach-tabs">' +
+        '<div class="attach-tab active" data-tab="link">Paste link</div>' +
+        '<div class="attach-tab" data-tab="upload">Upload file</div>' +
+      '</div>' +
+      '<div class="attach-form active" id="attach-link"><input type="text" id="link-input" placeholder="YouTube (Unlisted works great), Instagram, or Drive URL"><button class="btn btn-sm btn-primary" id="attach-link-btn">Attach</button></div>' +
+      '<div class="attach-form" id="attach-upload" style="margin-bottom:16px;"><input type="file" id="upload-input" accept="video/*"></div>');
+  }
+
+  panel.innerHTML = '<div class="modal-card wide">' + header + body + '</div>';
+
+  if (detailEditMode) {
+    document.getElementById('edit-cancel-btn').addEventListener('click', () => { detailEditMode = false; renderDetailPanel(); });
+    document.getElementById('edit-save-btn').addEventListener('click', () => saveEditThrow(t));
+    return;
+  }
 
   renderVideoBox(t);
 
@@ -1096,14 +1164,52 @@ function renderDetailPanel() {
   }
 }
 
+function startEditThrow() {
+  detailEditMode = true;
+  renderDetailPanel();
+}
+window.startEditThrow = startEditThrow;
+
+function saveEditThrow(t) {
+  const foul = document.getElementById('edit-foul').checked;
+  const distanceRaw = parseFloat(document.getElementById('edit-distance').value);
+  if (!foul && (!distanceRaw || distanceRaw <= 0)) {
+    document.getElementById('edit-distance').focus();
+    return;
+  }
+  const newDateVal = document.getElementById('edit-date').value || t.date.slice(0, 10);
+  const oldDateVal = t.date.slice(0, 10);
+  let newDate = t.date;
+  if (newDateVal !== oldDateVal) {
+    const sameDayCount = currentSeason().throws.filter(x => x.id !== t.id && x.date.slice(0, 10) === newDateVal).length;
+    newDate = newDateVal + 'T12:' + String(sameDayCount).padStart(2, '0') + ':00';
+  }
+
+  t.date = newDate;
+  t.distance = (distanceRaw && distanceRaw > 0) ? distanceRaw : null;
+  t.implement = document.getElementById('edit-implement').value || null;
+  t.wind = document.getElementById('edit-wind').value || null;
+  t.throwType = document.getElementById('edit-type').value || null;
+  t.wobble = document.getElementById('edit-wobble').value || null;
+  t.foul = foul;
+  t.notes = document.getElementById('edit-notes').value.trim() || null;
+
+  saveData();
+  detailEditMode = false;
+  renderDetailPanel();
+  renderAll();
+}
+
 function selectThrow(id) {
   selectedThrowId = id;
+  detailEditMode = false;
   renderDetailPanel();
   const throws = filteredThrows();
   renderChart(throws);
   renderTable(throws);
 }
 window.selectThrow = selectThrow;
+document.getElementById('detail-panel').addEventListener('click', (e) => { if (e.target.id === 'detail-panel') selectThrow(null); });
 
 async function deleteThrow(id) {
   const t = currentSeason().throws.find(x => x.id === id);
@@ -1243,10 +1349,12 @@ document.getElementById('import-file').addEventListener('change', (e) => {
 /* ---------- Cloud sync (Firebase: Google Sign-In + Firestore) ---------- */
 const CLOUD_CONFIG_KEY = 'discusFirebaseConfigV1';
 const CLOUD_COLLECTION = 'throwlog_users';
+const SHARE_COLLECTION = 'shared_profiles';
 
 let fbAuth = null, fbDb = null, cloudUser = null;
 let forceSetupView = false;
 let cloudUnsub = null, pushTimer = null, cloudSyncing = false, lastPushedAt = 0, cloudError = null;
+let cloudShareId = null;
 
 function loadCloudConfig() {
   // a personally-pasted override (from "Use a different Firebase project") always wins;
@@ -1300,6 +1408,7 @@ async function firstSyncIfNeeded(uid) {
       mergeRemoteAdditive(doc.data().data);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     }
+    if (doc.exists && doc.data() && doc.data().shareId) cloudShareId = doc.data().shareId;
     await pushToCloud();
     localStorage.setItem(marker, '1');
     renderAll();
@@ -1324,8 +1433,9 @@ function startCloudListener(uid) {
   cloudUnsub = fbDb.collection(CLOUD_COLLECTION).doc(uid).onSnapshot(doc => {
     if (!doc.exists) return;
     const remote = doc.data();
-    if (!remote || !remote.data || !remote.updatedAt) return;
-    if (remote.updatedAt <= lastPushedAt) return; // our own write echoing back, or stale
+    cloudShareId = remote.shareId || null;
+    if (!remote || !remote.data || !remote.updatedAt) { renderSyncButton(); return; }
+    if (remote.updatedAt <= lastPushedAt) { renderSyncButton(); return; } // our own write echoing back, or stale
     cloudSyncing = true;
     data = remote.data;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -1349,13 +1459,55 @@ async function pushToCloud() {
   if (!cloudUser || !fbDb) return;
   const ts = Date.now();
   try {
-    await fbDb.collection(CLOUD_COLLECTION).doc(cloudUser.uid).set({ data, updatedAt: ts });
+    await fbDb.collection(CLOUD_COLLECTION).doc(cloudUser.uid).set({ data, updatedAt: ts, shareId: cloudShareId || null });
     lastPushedAt = ts;
     cloudError = null;
+    if (cloudShareId) {
+      await fbDb.collection(SHARE_COLLECTION).doc(cloudShareId).set({ ownerUid: cloudUser.uid, data, updatedAt: ts });
+    }
   } catch (e) {
     cloudError = 'Could not sync: ' + e.message;
   }
   renderSyncButton();
+}
+
+function makeShareId() {
+  if (window.crypto && crypto.randomUUID) return crypto.randomUUID().replace(/-/g, '');
+  return 'share_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 12);
+}
+
+function getShareUrl(shareId) {
+  const u = new URL(location.href);
+  u.search = '?share=' + shareId;
+  u.hash = '';
+  return u.toString();
+}
+
+async function enableSharing() {
+  if (!cloudUser || !fbDb) return;
+  cloudError = null;
+  const id = cloudShareId || makeShareId();
+  cloudShareId = id;
+  try {
+    await fbDb.collection(SHARE_COLLECTION).doc(id).set({ ownerUid: cloudUser.uid, data, updatedAt: Date.now() });
+    await pushToCloud();
+  } catch (e) {
+    cloudError = 'Could not create share link: ' + e.message;
+    cloudShareId = null;
+  }
+  renderSyncModal();
+}
+
+async function stopSharing() {
+  if (!cloudShareId || !fbDb) return;
+  if (!confirm('Stop sharing? The link will no longer work for anyone who has it.')) return;
+  const idToDelete = cloudShareId;
+  try {
+    await fbDb.collection(SHARE_COLLECTION).doc(idToDelete).delete();
+  } catch (e) {}
+  cloudShareId = null;
+  await pushToCloud();
+  renderSyncModal();
 }
 
 function signInWithGoogle() {
@@ -1432,10 +1584,17 @@ function renderSyncModal() {
 
   let inner;
   if (cloudUser && !forceSetupView) {
+    const shareSection = cloudShareId
+      ? '<div class="share-box"><b style="font-size:13px;">Live link for coaches</b><p style="margin:4px 0 0;">Anyone with this link sees your full profile — live, no sign-in needed. Full data, view-only, no editing.</p>' +
+        '<div class="share-url-row"><input type="text" readonly id="share-url-input" value="' + escapeAttr(getShareUrl(cloudShareId)) + '"><button class="btn btn-sm" id="share-copy-btn">Copy</button></div>' +
+        '<div style="margin-top:8px;"><button class="btn btn-sm btn-danger" id="share-stop-btn">Stop sharing</button></div></div>'
+      : '<div class="share-box"><b style="font-size:13px;">Share with a coach</b><p style="margin:4px 0 8px;">Generate a live, view-only link — like a Google Docs share link. No account needed to view it.</p>' +
+        '<button class="btn btn-sm btn-primary" id="share-enable-btn">Get share link</button></div>';
     inner =
       '<h3>Cloud sync</h3>' +
       '<div class="sync-status-row"><span class="sync-dot' + (cloudError ? ' error' : '') + '"></span>Signed in as ' + escapeHtml(cloudUser.email) + '</div>' +
       '<p>Your throw data (distances, notes, wobble, etc.) syncs automatically to every device signed into this account. Uploaded videos stay local to whichever device recorded them for now — linked videos (YouTube/Instagram/Drive) work everywhere since they\'re just URLs.</p>' +
+      shareSection +
       errorBox +
       '<div class="modal-actions">' +
       '<button class="btn btn-sm" id="sync-signout-btn">Sign out</button>' +
@@ -1465,7 +1624,7 @@ function renderSyncModal() {
       '<li>Project settings (gear icon) &rarr; scroll to "Your apps" &rarr; Add app &rarr; Web &rarr; copy the <code>firebaseConfig</code> object</li>' +
       '<li>Paste that whole object below</li>' +
       '</ol>' +
-      '<pre style="font-size:10px;background:var(--bg-2);border:1px solid var(--line);border-radius:6px;padding:8px;white-space:pre-wrap;margin-bottom:12px;color:var(--text-1);">rules_version = \'2\';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    match /' + CLOUD_COLLECTION + '/{uid} {\n      allow read, write: if request.auth != null && request.auth.uid == uid;\n    }\n  }\n}</pre>' +
+      '<pre style="font-size:10px;background:var(--bg-2);border:1px solid var(--line);border-radius:6px;padding:8px;white-space:pre-wrap;margin-bottom:12px;color:var(--text-1);">rules_version = \'2\';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    match /' + CLOUD_COLLECTION + '/{uid} {\n      allow read, write: if request.auth != null && request.auth.uid == uid;\n    }\n    match /' + SHARE_COLLECTION + '/{shareId} {\n      allow read: if true;\n      allow write: if request.auth != null && (\n        !exists(/databases/$(database)/documents/' + SHARE_COLLECTION + '/$(shareId)) ||\n        request.auth.uid == resource.data.ownerUid\n      );\n    }\n  }\n}</pre>' +
       '<textarea id="fb-config-input" placeholder=\'{ "apiKey": "...", "authDomain": "...", "projectId": "...", ... }\'></textarea>' +
       errorBox +
       '<div class="modal-actions">' +
@@ -1481,6 +1640,21 @@ function renderSyncModal() {
   if (byId('sync-signin-btn')) byId('sync-signin-btn').addEventListener('click', signInWithGoogle);
   if (byId('sync-signout-btn')) byId('sync-signout-btn').addEventListener('click', signOutCloud);
   if (byId('sync-disconnect-btn')) byId('sync-disconnect-btn').addEventListener('click', disconnectCloud);
+  if (byId('share-enable-btn')) byId('share-enable-btn').addEventListener('click', enableSharing);
+  if (byId('share-stop-btn')) byId('share-stop-btn').addEventListener('click', stopSharing);
+  if (byId('share-copy-btn')) byId('share-copy-btn').addEventListener('click', () => {
+    const input = byId('share-url-input');
+    input.select();
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(input.value).catch(() => document.execCommand('copy'));
+    } else {
+      document.execCommand('copy');
+    }
+    const btn = byId('share-copy-btn');
+    const original = btn.textContent;
+    btn.textContent = 'Copied!';
+    setTimeout(() => { if (byId('share-copy-btn')) byId('share-copy-btn').textContent = original; }, 1500);
+  });
   if (byId('sync-change-project-link')) byId('sync-change-project-link').addEventListener('click', (e) => {
     e.preventDefault();
     if (disconnectCloud()) { forceSetupView = true; openSyncModal(); }
@@ -1510,11 +1684,49 @@ function renderSyncModal() {
 document.getElementById('sync-btn').addEventListener('click', openSyncModal);
 document.getElementById('sync-modal').addEventListener('click', (e) => { if (e.target.id === 'sync-modal') closeSyncModal(); });
 
-(function initCloudOnLoad() {
+function loadSharedProfile(shareId) {
+  const banner = document.getElementById('shared-banner');
   const cfg = loadCloudConfig();
-  if (cfg) initFirebase(cfg);
-  renderSyncButton();
-})();
+  if (!cfg) {
+    banner.innerHTML = '<span>&#9888; This link isn\'t configured correctly (missing Firebase setup).</span>';
+    return;
+  }
+  try {
+    if (!firebase.apps.length) firebase.initializeApp(cfg);
+    fbDb = firebase.firestore();
+  } catch (e) {
+    banner.innerHTML = '<span>&#9888; Could not connect: ' + escapeHtml(e.message) + '</span>';
+    return;
+  }
+  banner.innerHTML = '<span>&#128065; Viewing a shared profile — read-only, updates live</span>';
+  fbDb.collection(SHARE_COLLECTION).doc(shareId).onSnapshot(doc => {
+    if (!doc.exists) {
+      banner.innerHTML = '<span>This share link is no longer active.</span>';
+      return;
+    }
+    const remote = doc.data();
+    if (!remote || !remote.data) return;
+    data = remote.data;
+    if (!data.seasons[data.currentSeasonId]) {
+      data.currentSeasonId = Object.keys(data.seasons)[0];
+    }
+    selectedThrowId = null;
+    renderAll();
+  }, err => {
+    banner.innerHTML = '<span>Connection error: ' + escapeHtml(err.message) + '</span>';
+  });
+}
+
+if (isSharedView) {
+  loadSharedProfile(viewShareId);
+} else {
+  (function initCloudOnLoad() {
+    const cfg = loadCloudConfig();
+    if (cfg) initFirebase(cfg);
+    renderSyncButton();
+  })();
+  renderAll();
+}
 
 /* ---------- Render all ---------- */
 function renderAll() {
@@ -1527,8 +1739,6 @@ function renderAll() {
   renderTable(throws);
   renderDetailPanel();
 }
-
-renderAll();
 
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
   window.addEventListener('load', () => {
