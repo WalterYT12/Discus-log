@@ -1477,6 +1477,10 @@ function initFirebase(cfg) {
     fbAuth = firebase.auth();
     fbDb = firebase.firestore();
     fbAuth.onAuthStateChanged(onAuthChanged);
+    fbAuth.getRedirectResult().catch(e => {
+      cloudError = 'Sign-in failed: ' + e.message;
+      renderSyncButton();
+    });
     return true;
   } catch (e) {
     cloudError = 'Could not connect with that config: ' + e.message;
@@ -1606,7 +1610,10 @@ async function stopSharing() {
 
 function signInWithGoogle() {
   cloudError = null;
-  fbAuth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e => {
+  // redirect flow, not popup: popups are unreliable on mobile browsers and
+  // especially inside an installed home-screen PWA, where they can silently
+  // fail to hand control back to the app after signing in
+  fbAuth.signInWithRedirect(new firebase.auth.GoogleAuthProvider()).catch(e => {
     cloudError = 'Sign-in failed: ' + e.message;
     renderSyncModal();
   });
