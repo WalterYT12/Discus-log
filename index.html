@@ -1477,9 +1477,13 @@ function initFirebase(cfg) {
     fbAuth = firebase.auth();
     fbDb = firebase.firestore();
     fbAuth.onAuthStateChanged(onAuthChanged);
-    fbAuth.getRedirectResult().catch(e => {
-      cloudError = 'Sign-in failed: ' + e.message;
-      renderSyncButton();
+    fbAuth.getRedirectResult().then(result => {
+      // came back from a signInWithRedirect round trip — show the result either way,
+      // success or failure, instead of silently landing back on the main page
+      if (result && result.user) openSyncModal();
+    }).catch(e => {
+      cloudError = 'Sign-in failed: [' + (e.code || 'unknown') + '] ' + e.message;
+      openSyncModal();
     });
     return true;
   } catch (e) {
