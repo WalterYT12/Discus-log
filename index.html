@@ -1477,6 +1477,14 @@ function initFirebase(cfg) {
     fbAuth = firebase.auth();
     fbDb = firebase.firestore();
     fbAuth.onAuthStateChanged(onAuthChanged);
+    fbAuth.getRedirectResult().then(result => {
+      // came back from a signInWithRedirect round trip — show the result either way,
+      // success or failure, instead of silently landing back on the main page
+      if (result && result.user) openSyncModal();
+    }).catch(e => {
+      cloudError = 'Sign-in failed: [' + (e.code || 'unknown') + '] ' + e.message;
+      openSyncModal();
+    });
     return true;
   } catch (e) {
     cloudError = 'Could not connect with that config: ' + e.message;
@@ -1604,9 +1612,18 @@ async function stopSharing() {
   renderSyncModal();
 }
 
+function isStandalonePwa() {
+  return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+}
+
 function signInWithGoogle() {
   cloudError = null;
-  fbAuth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e => {
+  const provider = new firebase.auth.GoogleAuthProvider();
+  // installed home-screen apps handle full-page redirects to Google unreliably
+  // (a long-standing, unresolved platform limitation) — popup fares better there
+  // for most people, so branch on how the app is currently running
+  const method = isStandalonePwa() ? 'signInWithPopup' : 'signInWithRedirect';
+  fbAuth[method](provider).catch(e => {
     cloudError = 'Sign-in failed: ' + e.message;
     renderSyncModal();
   });
@@ -1697,9 +1714,13 @@ function renderSyncModal() {
       '</div>' +
       (isPersonalOverride() ? '' : '<p style="margin-top:12px;"><a href="#" id="sync-change-project-link" style="color:var(--text-2);font-size:11px;">Use a different Firebase project</a></p>');
   } else if (cfg) {
+    const standaloneNote = isStandalonePwa()
+      ? '<p style="font-size:11px;color:var(--text-2);">Running as an installed app — if sign-in gets stuck, open this same site in Safari directly (not the home-screen icon) and sign in from there instead.</p>'
+      : '';
     inner =
       '<h3>Cloud sync</h3>' +
       '<p>Connected to your Firebase project. Sign in with Google to sync your throw data across devices.</p>' +
+      standaloneNote +
       errorBox +
       '<div class="modal-actions">' +
       '<button class="btn btn-sm btn-primary" id="sync-signin-btn">Sign in with Google</button>' +
